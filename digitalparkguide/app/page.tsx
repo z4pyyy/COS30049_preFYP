@@ -1,65 +1,201 @@
-import Image from "next/image";
+import Link from "next/link";
+
+const features = [
+  {
+    icon: "🗺️",
+    title: "Interactive Maps",
+    desc: "Navigate every trail, facility, and attraction with live maps tailored to your visit.",
+  },
+  {
+    icon: "📅",
+    title: "Event Calendar",
+    desc: "Stay up-to-date with park events, guided tours, and seasonal highlights.",
+  },
+  {
+    icon: "🌿",
+    title: "Flora & Fauna",
+    desc: "Discover the park's biodiversity with our rich species database and AR identifiers.",
+  },
+  {
+    icon: "♿",
+    title: "Accessibility Info",
+    desc: "Find wheelchair-friendly paths, rest zones, and accessible facilities instantly.",
+  },
+  {
+    icon: "🔔",
+    title: "Smart Alerts",
+    desc: "Receive real-time notifications about trail closures, weather, and safety updates.",
+  },
+  {
+    icon: "📸",
+    title: "Photo Spots",
+    desc: "Discover the best photography locations and share your moments with the community.",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-white text-gray-900 font-sans">
+      {/* Navbar */}
+      <header className="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/90 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="text-2xl">🌳</span>
+            <span className="text-lg font-bold tracking-tight text-green-700">
+              DigitalParkGuide
+            </span>
+          </Link>
+          <nav className="hidden items-center gap-6 text-sm font-medium text-gray-600 md:flex">
+            <a href="#features" className="hover:text-green-700 transition-colors">
+              Features
+            </a>
+            <a href="#about" className="hover:text-green-700 transition-colors">
+              About
+            </a>
+            <a href="#contact" className="hover:text-green-700 transition-colors">
+              Contact
+            </a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/login"
+              className="rounded-full border border-green-700 px-4 py-1.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-50"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-full bg-green-700 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-green-800"
+            >
+              Get Started
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-emerald-50 px-4 py-20 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
+        {/* Background blobs */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-green-200 opacity-30 blur-3xl"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-emerald-200 opacity-30 blur-3xl"
+        />
+
+        <div className="relative mx-auto max-w-3xl text-center">
+          <span className="mb-4 inline-block rounded-full bg-green-100 px-4 py-1 text-sm font-semibold text-green-800">
+            Your Smart Park Companion
+          </span>
+          <h1 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
+            Explore the Park
+            <span className="block text-green-700">Like Never Before</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mx-auto mt-6 max-w-xl text-base text-gray-600 sm:text-lg">
+            DigitalParkGuide brings interactive maps, real-time alerts, and rich
+            nature information to your fingertips — whether you&apos;re a weekend
+            visitor or a daily regular.
           </p>
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/login"
+              className="w-full rounded-full bg-green-700 px-7 py-3 text-center text-sm font-semibold text-white shadow-md transition-all hover:bg-green-800 hover:shadow-lg sm:w-auto"
+            >
+              Start Exploring →
+            </Link>
+            <a
+              href="#features"
+              className="w-full rounded-full border border-gray-300 px-7 py-3 text-center text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto"
+            >
+              See Features
+            </a>
+          </div>
+          {/* Trust badges */}
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-400">
+            <span>✅ Free to use</span>
+            <span>✅ No download required</span>
+            <span>✅ Works on any device</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
+      </section>
+
+      {/* Features */}
+      <section id="features" className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-12 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+              Everything you need in the park
+            </h2>
+            <p className="mt-3 text-gray-500">
+              Packed with features to make every park visit safer, smarter, and
+              more enjoyable.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {features.map((f) => (
+              <div
+                key={f.title}
+                className="group rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
+              >
+                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-2xl">
+                  {f.icon}
+                </div>
+                <h3 className="text-base font-semibold text-gray-900">
+                  {f.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                  {f.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* About / CTA Banner */}
+      <section
+        id="about"
+        className="mx-4 my-8 overflow-hidden rounded-3xl bg-green-700 px-6 py-14 text-center text-white sm:mx-6 sm:px-10 lg:mx-auto lg:max-w-6xl"
+      >
+        <h2 className="text-2xl font-bold sm:text-3xl">
+          Built for every park-goer
+        </h2>
+        <p className="mx-auto mt-4 max-w-lg text-sm text-green-100 sm:text-base">
+          Whether you&apos;re a family on a weekend outing, a jogger on your daily
+          route, or a nature enthusiast documenting wildlife — DigitalParkGuide
+          adapts to you.
+        </p>
+        <Link
+          href="/login"
+          className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-green-800 shadow transition-all hover:bg-green-50 hover:shadow-md"
+        >
+          Create a free account
+        </Link>
+      </section>
+
+      {/* Footer */}
+      <footer
+        id="contact"
+        className="border-t border-gray-100 px-4 py-8 text-center text-sm text-gray-400 sm:px-6 lg:px-8"
+      >
+        <p>
+          &copy; {new Date().getFullYear()} DigitalParkGuide &mdash; Swinburne
+          University of Technology
+        </p>
+        <div className="mt-2 flex flex-wrap justify-center gap-4">
+          <a href="#" className="hover:text-green-700 transition-colors">
+            Privacy Policy
           </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
+          <a href="#" className="hover:text-green-700 transition-colors">
+            Terms of Use
+          </a>
+          <a href="mailto:hello@digitalparkguide.app" className="hover:text-green-700 transition-colors">
+            Contact
           </a>
         </div>
-      </main>
+      </footer>
     </div>
   );
 }

@@ -105,12 +105,12 @@ export default function Home() {
             >
               Start Exploring →
             </Link>
-            <a
-              href="#features"
+            <Link
+              href="/dashboard"
               className="w-full rounded-full border border-gray-300 px-7 py-3 text-center text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto"
             >
-              See Features
-            </a>
+              View Dashboard Demo
+            </Link>
           </div>
           {/* Trust badges */}
           <div className="mt-10 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-400">

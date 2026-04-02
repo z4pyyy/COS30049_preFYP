@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useRef, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-const OTP_LENGTH = 6;
+const OTP_LENGTH = 8;
 
 function VerifyOtpForm() {
   const router = useRouter();
@@ -76,7 +76,7 @@ function VerifyOtpForm() {
 
   async function handleResend() {
     setResending(true); setError(null); setResent(false);
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
     setResending(false);
     if (error) { setError(error.message); return; }
     setResent(true);
@@ -158,7 +158,7 @@ function VerifyOtpForm() {
                   value={d}
                   onChange={(e) => handleChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
-                  className={`w-12 h-14 text-center text-2xl font-black rounded-xl border-2 bg-surface-container text-on-surface outline-none transition-all
+                  className={`w-10 h-12 text-center text-xl font-black rounded-xl border-2 bg-surface-container text-on-surface outline-none transition-all
                     ${d ? "border-primary bg-primary-fixed/10" : "border-outline-variant"}
                     focus:border-primary focus:bg-primary-fixed/10 focus:ring-2 focus:ring-primary/20`}
                   aria-label={`Digit ${i + 1}`}

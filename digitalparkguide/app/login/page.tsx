@@ -29,7 +29,7 @@ function LoginForm() {
   const supabase = createClient();
   const { showToast, toastEl } = useToast();
 
-  const isAdminEmail = email.toLowerCase().includes("admin");
+  const [adminBlocked, setAdminBlocked] = useState(false);
 
   async function handleGoogleSignIn() {
     setOauthLoading(true); setError(null);
@@ -42,11 +42,15 @@ function LoginForm() {
 
   async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
-    setLoading(true); setError(null);
+    setLoading(true); setError(null); setAdminBlocked(false);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       if (error.message.includes("Invalid login credentials")) {
+        if (email.toLowerCase().includes("admin")) {
+          setAdminBlocked(true);
+          return;
+        }
         const { data: provider } = await supabase.rpc("get_user_provider", { p_email: email });
         if (provider && provider !== "email") {
           setError("This email is linked to a Google account. Please use 'Sign in with Google' above.");
@@ -67,7 +71,15 @@ function LoginForm() {
     setLoading(true); setError(null);
     const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
     setLoading(false);
-    if (error) { setError(friendlyError(error.message)); return; }
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes("signups not allowed") || msg.includes("user not found") || msg.includes("not registered")) {
+        router.push(`/register?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      setError(friendlyError(error.message));
+      return;
+    }
     showToast("Code sent! Check your inbox.", "info");
     setTimeout(() => router.push(`/verify-otp?email=${encodeURIComponent(email)}&next=${next}`), 800);
   }
@@ -153,12 +165,12 @@ function LoginForm() {
                   <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">alternate_email</span>
                   <input
                     type="email" required value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); setAdminBlocked(false); }}
                     placeholder="name@forestry.gov.my"
                     className="w-full h-14 pl-12 pr-4 bg-surface-container-high border-0 rounded-xl focus:ring-2 focus:ring-surface-tint focus:bg-white transition-all placeholder:text-outline/50 font-medium outline-none"
                   />
                 </div>
-                {isAdminEmail && (
+                {adminBlocked && (
                   <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 font-medium">
                     <span className="material-symbols-outlined text-sm">admin_panel_settings</span>
                     Admin accounts are not permitted here — use your official SFC credentials.
@@ -183,7 +195,7 @@ function LoginForm() {
               </div>
 
               <button
-                type="submit" disabled={loading || oauthLoading || isAdminEmail}
+                type="submit" disabled={loading || oauthLoading || adminBlocked}
                 className="w-full h-14 bg-primary text-white rounded-xl font-bold uppercase tracking-widest text-sm mt-2 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {loading
@@ -196,7 +208,7 @@ function LoginForm() {
             {/* OTP shortcut */}
             <button
               type="button" onClick={handleOtpSignIn}
-              disabled={loading || oauthLoading || isAdminEmail}
+              disabled={loading || oauthLoading || adminBlocked}
               className="text-sm text-secondary font-semibold hover:text-primary transition-colors disabled:opacity-50"
             >
               Sign in with one-time code instead

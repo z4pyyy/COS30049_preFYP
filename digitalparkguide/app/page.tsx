@@ -1,199 +1,402 @@
+// Public landing page — SFC Sarawak style
+// Server component: fetches latest announcements from Supabase
 import Link from "next/link";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import ProfileDropdown from "@/components/ProfileDropdown";
 
-const features = [
-  {
-    icon: "🗺️",
-    title: "Interactive Maps",
-    desc: "Navigate every trail, facility, and attraction with live maps tailored to your visit.",
-  },
-  {
-    icon: "📅",
-    title: "Event Calendar",
-    desc: "Stay up-to-date with park events, guided tours, and seasonal highlights.",
-  },
-  {
-    icon: "🌿",
-    title: "Flora & Fauna",
-    desc: "Discover the park's biodiversity with our rich species database and AR identifiers.",
-  },
-  {
-    icon: "♿",
-    title: "Accessibility Info",
-    desc: "Find wheelchair-friendly paths, rest zones, and accessible facilities instantly.",
-  },
-  {
-    icon: "🔔",
-    title: "Smart Alerts",
-    desc: "Receive real-time notifications about trail closures, weather, and safety updates.",
-  },
-  {
-    icon: "📸",
-    title: "Photo Spots",
-    desc: "Discover the best photography locations and share your moments with the community.",
-  },
+async function getAnnouncements() {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll(); },
+        setAll() {},
+      },
+    }
+  );
+  const { data } = await supabase
+    .from("announcements")
+    .select("id, title, content, category, created_at")
+    .eq("published", true)
+    .order("created_at", { ascending: false })
+    .limit(6);
+  return data ?? [];
+}
+
+async function getAuthUser() {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return cookieStore.getAll(); },
+        setAll() {},
+      },
+    }
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-MY", {
+    day: "numeric", month: "short", year: "numeric",
+  });
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  TRAINING:    "bg-blue-100 text-blue-800",
+  POLICY:      "bg-amber-100 text-amber-800",
+  OPERATIONS:  "bg-green-100 text-green-800",
+  SAFETY:      "bg-red-100 text-red-800",
+  GENERAL:     "bg-gray-100 text-gray-700",
+};
+
+const quickLinks = [
+  { label: "Training Programmes",  href: "/training",  icon: "school" },
+  { label: "Biodiversity Database", href: "/biodiversity", icon: "eco" },
+  { label: "Incident Reports",      href: "/incidents",    icon: "warning" },
+  { label: "E-Certification",       href: "/certifications", icon: "workspace_premium" },
 ];
 
-export default function Home() {
+const stats = [
+  { value: "48", label: "Certified Guides" },
+  { value: "12", label: "Protected Areas" },
+  { value: "3", label: "Active Patrols" },
+  { value: "99.4%", label: "Uptime SLA" },
+];
+
+export default async function HomePage() {
+  const [announcements, user] = await Promise.all([getAnnouncements(), getAuthUser()])
+;
+
+  const featured = announcements[0];
+  const rest = announcements.slice(1);
+
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans">
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 w-full border-b border-gray-100 bg-white/90 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl">🌳</span>
-            <span className="text-lg font-bold tracking-tight text-green-700">
-              DigitalParkGuide
-            </span>
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-gray-600 md:flex">
-            <a href="#features" className="hover:text-green-700 transition-colors">
-              Features
-            </a>
-            <a href="#about" className="hover:text-green-700 transition-colors">
-              About
-            </a>
-            <a href="#contact" className="hover:text-green-700 transition-colors">
-              Contact
-            </a>
-          </nav>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="rounded-full border border-green-700 px-4 py-1.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-50"
-            >
-              Sign In
+    <div className="min-h-screen bg-[#f5f5f0] text-gray-900 font-sans">
+
+      {/* ── Top bar (gov-style) ── */}
+      <div className="bg-[#012d1d] text-white text-[11px] py-1.5 px-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <span className="opacity-60">Portal Rasmi | Sarawak Forestry Corporation</span>
+          <div className="flex items-center gap-4 opacity-60">
+            <a href="#" className="hover:opacity-100">BM</a>
+            <span>|</span>
+            <a href="#" className="hover:opacity-100">EN</a>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main Navbar ── */}
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Brand */}
+            <Link href="/" className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-[#012d1d] flex items-center justify-center">
+                <span className="text-white text-lg">🌿</span>
+              </div>
+              <div className="leading-none">
+                <div className="text-sm font-extrabold text-[#012d1d] tracking-tight">Digital Sentinel</div>
+                <div className="text-[10px] text-gray-500 font-medium">Sarawak Forestry Corporation</div>
+              </div>
             </Link>
-            <Link
-              href="/login"
-              className="rounded-full bg-green-700 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-green-800"
-            >
-              Get Started
-            </Link>
+
+            {/* Nav links */}
+            <nav className="hidden md:flex items-center gap-1">
+              {[
+                { label: "Home",          href: "/" },
+                { label: "Training",      href: "/training" },
+                { label: "Announcements", href: "/announcements" },
+                { label: "Biodiversity",  href: "/biodiversity" },
+                { label: "About SFC",     href: "/about" },
+              ].map(({ label, href }) => (
+                <Link
+                  key={label}
+                  href={href}
+                  className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-[#012d1d] hover:bg-gray-50 rounded-md transition-colors"
+                >
+                  {label}
+                </Link>
+              ))}
+            </nav>
+
+            {/* Auth CTA */}
+            <div className="flex items-center gap-2">
+              {user ? (
+                <>
+                  <Link
+                    href="/apply-guide"
+                    className="flex items-center gap-1.5 bg-[#012d1d] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                  >
+                    <span className="text-base leading-none">✦</span>
+                    Register as Guide
+                  </Link>
+                  <ProfileDropdown
+                    name={user.user_metadata?.full_name ?? ""}
+                    email={user.email ?? ""}
+                  />
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    className="text-sm font-medium text-gray-600 hover:text-[#012d1d] px-3 py-2 rounded-md transition-colors"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="flex items-center gap-1.5 bg-[#012d1d] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                  >
+                    <span className="text-base leading-none">✦</span>
+                    Register as Guide
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-green-50 via-white to-emerald-50 px-4 py-20 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
-        {/* Background blobs */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-24 -right-24 h-80 w-80 rounded-full bg-green-200 opacity-30 blur-3xl"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-emerald-200 opacity-30 blur-3xl"
-        />
-
-        <div className="relative mx-auto max-w-3xl text-center">
-          <span className="mb-4 inline-block rounded-full bg-green-100 px-4 py-1 text-sm font-semibold text-green-800">
-            Your Smart Park Companion
-          </span>
-          <h1 className="mt-3 text-4xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
-            Explore the Park
-            <span className="block text-green-700">Like Never Before</span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-xl text-base text-gray-600 sm:text-lg">
-            DigitalParkGuide brings interactive maps, real-time alerts, and rich
-            nature information to your fingertips — whether you&apos;re a weekend
-            visitor or a daily regular.
-          </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link
-              href="/login"
-              className="w-full rounded-full bg-green-700 px-7 py-3 text-center text-sm font-semibold text-white shadow-md transition-all hover:bg-green-800 hover:shadow-lg sm:w-auto"
-            >
-              Start Exploring →
-            </Link>
-            <Link
-              href="/dashboard"
-              className="w-full rounded-full border border-gray-300 px-7 py-3 text-center text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto"
-            >
-              View Dashboard Demo
-            </Link>
-          </div>
-          {/* Trust badges */}
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-400">
-            <span>✅ Free to use</span>
-            <span>✅ No download required</span>
-            <span>✅ Works on any device</span>
+      {/* ── Hero Banner ── */}
+      <section className="relative bg-[#012d1d] text-white overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src="https://images.unsplash.com/photo-1448375240586-882707db888b?w=1400&q=80"
+            alt=""
+            className="w-full h-full object-cover opacity-30"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#012d1d]/90 via-[#012d1d]/60 to-transparent" />
+        </div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider uppercase mb-6">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              System Online — Borneo Wildlife Conservation
+            </div>
+            <h1 className="text-4xl lg:text-6xl font-extrabold leading-tight tracking-tighter mb-6">
+              Protecting Sarawak&apos;s<br />
+              <span className="text-green-400">Natural Heritage</span>
+            </h1>
+            <p className="text-white/70 text-lg leading-relaxed mb-8 max-w-xl">
+              The Digital Sentinel platform supports SFC rangers, certified guides, and biodiversity
+              officers in managing protected areas across Sarawak.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/announcements"
+                className="bg-white text-[#012d1d] px-6 py-3 rounded-md font-semibold text-sm hover:bg-green-50 transition-colors"
+              >
+                Latest Announcements
+              </Link>
+              <Link
+                href={user ? "/apply-guide" : "/register"}
+                className="border border-white/40 text-white px-6 py-3 rounded-md font-semibold text-sm hover:bg-white/10 transition-colors"
+              >
+                Register as Guide →
+              </Link>
+            </div>
           </div>
         </div>
-      </section>
 
-      {/* Features */}
-      <section id="features" className="px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-12 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-              Everything you need in the park
-            </h2>
-            <p className="mt-3 text-gray-500">
-              Packed with features to make every park visit safer, smarter, and
-              more enjoyable.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((f) => (
-              <div
-                key={f.title}
-                className="group rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-md"
-              >
-                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 text-2xl">
-                  {f.icon}
-                </div>
-                <h3 className="text-base font-semibold text-gray-900">
-                  {f.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                  {f.desc}
-                </p>
+        {/* Stats strip */}
+        <div className="relative border-t border-white/10 bg-black/20 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 grid grid-cols-2 md:grid-cols-4 gap-6">
+            {stats.map(({ value, label }) => (
+              <div key={label} className="text-center">
+                <div className="text-2xl font-extrabold text-green-400">{value}</div>
+                <div className="text-xs text-white/50 mt-0.5">{label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* About / CTA Banner */}
-      <section
-        id="about"
-        className="mx-4 my-8 overflow-hidden rounded-3xl bg-green-700 px-6 py-14 text-center text-white sm:mx-6 sm:px-10 lg:mx-auto lg:max-w-6xl"
-      >
-        <h2 className="text-2xl font-bold sm:text-3xl">
-          Built for every park-goer
-        </h2>
-        <p className="mx-auto mt-4 max-w-lg text-sm text-green-100 sm:text-base">
-          Whether you&apos;re a family on a weekend outing, a jogger on your daily
-          route, or a nature enthusiast documenting wildlife — DigitalParkGuide
-          adapts to you.
-        </p>
-        <Link
-          href="/login"
-          className="mt-8 inline-block rounded-full bg-white px-8 py-3 text-sm font-semibold text-green-800 shadow transition-all hover:bg-green-50 hover:shadow-md"
-        >
-          Create a free account
-        </Link>
-      </section>
+      {/* ── Main Content ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-      {/* Footer */}
-      <footer
-        id="contact"
-        className="border-t border-gray-100 px-4 py-8 text-center text-sm text-gray-400 sm:px-6 lg:px-8"
-      >
-        <p>
-          &copy; {new Date().getFullYear()} DigitalParkGuide &mdash; Swinburne
-          University of Technology
-        </p>
-        <div className="mt-2 flex flex-wrap justify-center gap-4">
-          <a href="#" className="hover:text-green-700 transition-colors">
-            Privacy Policy
-          </a>
-          <a href="#" className="hover:text-green-700 transition-colors">
-            Terms of Use
-          </a>
-          <a href="mailto:hello@digitalparkguide.app" className="hover:text-green-700 transition-colors">
-            Contact
-          </a>
+        {/* Left: Announcements ──────────────────────────────── */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-[#012d1d] flex items-center gap-2">
+              <span className="w-1 h-5 bg-[#012d1d] rounded-full inline-block" />
+              Latest Announcements
+            </h2>
+            <Link href="/announcements" className="text-xs text-[#012d1d] font-semibold hover:underline">
+              View All →
+            </Link>
+          </div>
+
+          {announcements.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
+              <p className="text-4xl mb-3">📋</p>
+              <p className="font-medium">No announcements yet.</p>
+              <p className="text-sm mt-1">Check back soon for updates from SFC.</p>
+            </div>
+          ) : (
+            <>
+              {/* Featured announcement */}
+              {featured && (
+                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                  <div className="h-2 bg-[#012d1d]" />
+                  <div className="p-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${CATEGORY_COLORS[featured.category ?? "GENERAL"] ?? CATEGORY_COLORS["GENERAL"]}`}>
+                        {featured.category ?? "General"}
+                      </span>
+                      <span className="text-xs text-gray-400">{formatDate(featured.created_at)}</span>
+                      <span className="ml-auto text-[10px] bg-[#012d1d] text-white px-2 py-0.5 rounded-full font-bold">LATEST</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 leading-snug mb-3">{featured.title}</h3>
+                    <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{featured.content}</p>
+                    <Link
+                      href={`/announcements/${featured.id}`}
+                      className="inline-flex items-center gap-1 mt-4 text-sm font-semibold text-[#012d1d] hover:underline"
+                    >
+                      Read more →
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Rest of announcements */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                {rest.map((a) => (
+                  <Link
+                    key={a.id}
+                    href={`/announcements/${a.id}`}
+                    className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-[#012d1d]/20 transition-all group"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${CATEGORY_COLORS[a.category ?? "GENERAL"] ?? CATEGORY_COLORS["GENERAL"]}`}>
+                        {a.category ?? "General"}
+                      </span>
+                      <span className="text-xs text-gray-400 ml-auto">{formatDate(a.created_at)}</span>
+                    </div>
+                    <h4 className="text-sm font-bold text-gray-900 leading-snug line-clamp-2 group-hover:text-[#012d1d] transition-colors">
+                      {a.title}
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{a.content}</p>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Right: Sidebar ──────────────────────────────────── */}
+        <div className="space-y-6">
+
+          {/* Register as Guide CTA */}
+          <div className="bg-[#012d1d] rounded-xl p-6 text-white relative overflow-hidden">
+            <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/5" />
+            <div className="absolute -right-2 -bottom-4 w-16 h-16 rounded-full bg-white/5" />
+            <p className="text-[10px] uppercase tracking-widest text-green-400 font-bold mb-2">Certification Programme</p>
+            <h3 className="text-lg font-bold leading-snug mb-3">Become a Certified Guide</h3>
+            <p className="text-xs text-white/60 leading-relaxed mb-5">
+              Complete SFC&apos;s accredited training to lead groups through Sarawak&apos;s protected forest areas.
+            </p>
+            <Link
+              href={user ? "/apply-guide" : "/register"}
+              className="block text-center bg-white text-[#012d1d] text-sm font-bold px-4 py-3 rounded-lg hover:bg-green-50 transition-colors"
+            >
+              Register as Guide →
+            </Link>
+          </div>
+
+          {/* Quick Links */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="w-1 h-4 bg-[#012d1d] rounded-full inline-block" />
+              Quick Links
+            </h3>
+            <div className="space-y-1">
+              {quickLinks.map(({ label, href, icon }) => (
+                <Link
+                  key={label}
+                  href={href}
+                  className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 group transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[#012d1d] text-lg opacity-70 group-hover:opacity-100">
+                    {icon}
+                  </span>
+                  <span className="text-sm text-gray-700 group-hover:text-[#012d1d] font-medium">{label}</span>
+                  <span className="ml-auto text-gray-300 group-hover:text-[#012d1d] text-xs">→</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Emergency / Contact */}
+          <div className="bg-red-50 border border-red-100 rounded-xl p-5">
+            <h3 className="text-sm font-bold text-red-800 mb-1">Emergency Contact</h3>
+            <p className="text-xs text-red-700/70 mb-3">For wildlife emergencies or poaching incidents:</p>
+            <a href="tel:+6082610088" className="flex items-center gap-2 text-red-700 font-bold text-sm hover:underline">
+              <span className="material-symbols-outlined text-lg">call</span>
+              +60 82-610088
+            </a>
+            <p className="text-[10px] text-red-700/50 mt-2">SFC Operations Centre · 24 Hours</p>
+          </div>
+
+          {/* Sign in prompt for unauthenticated */}
+          {!user && (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 text-center">
+              <p className="text-sm font-semibold text-gray-700 mb-1">Already have an account?</p>
+              <p className="text-xs text-gray-500 mb-4">Sign in to access your dashboard and training records.</p>
+              <Link
+                href="/login"
+                className="block bg-[#012d1d] text-white text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-[#024a2f] transition-colors"
+              >
+                Sign In
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Footer ── */}
+      <footer className="bg-[#012d1d] text-white mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-lg">🌿</div>
+              <div>
+                <div className="text-sm font-bold">Digital Sentinel</div>
+                <div className="text-[10px] text-white/40">Sarawak Forestry Corporation</div>
+              </div>
+            </div>
+            <p className="text-xs text-white/50 leading-relaxed">
+              Supporting the management of protected areas, biodiversity conservation,
+              and guide certification across Sarawak.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4">Platform</h4>
+            <div className="space-y-2">
+              {["Training Programmes", "Biodiversity Database", "E-Certifications", "Announcements"].map((l) => (
+                <a key={l} href="#" className="block text-sm text-white/60 hover:text-white transition-colors">{l}</a>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4">Organisation</h4>
+            <div className="space-y-2">
+              {["About SFC", "Contact Us", "Privacy Policy", "Accessibility"].map((l) => (
+                <a key={l} href="#" className="block text-sm text-white/60 hover:text-white transition-colors">{l}</a>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-white/10 py-4 text-center text-[11px] text-white/30">
+          © {new Date().getFullYear()} Sarawak Forestry Corporation · Jabatan Hutan Sarawak · All Rights Reserved
         </div>
       </footer>
     </div>

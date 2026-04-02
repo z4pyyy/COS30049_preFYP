@@ -1,516 +1,335 @@
 "use client";
 
-import { useState } from "react";
+// A2.4 — Superadmin Dashboard with role-based UI guards
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { can, type AppRole } from "@/types/roles";
+import type { User } from "@supabase/supabase-js";
 
-// ─── Data ──────────────────────────────────────────────────────────────────
-
-const desktopStats = [
-  { label: "Assigned Guides", value: "12" },
-  { label: "Active Modules", value: "8" },
-  { label: "Average Completion Rate", value: "88%" },
-  { label: "Upcoming Sessions", value: "4" },
-];
-
-const mobileStats = [
-  { label: "Assigned Guides", value: "24", badge: null, sub: null },
-  { label: "Active Modules", value: "8", badge: null, sub: null },
-  { label: "Avg Completion", value: "82%", badge: "On track", sub: null },
-  { label: "Upcoming Sessions", value: "3", badge: null, sub: "Next 7 days" },
-];
-
-const moduleProgress = [
-  { name: "Plants Basics", pct: 76 },
-  { name: "Wildlife Safety", pct: 64 },
-  { name: "Trail Etiquette", pct: 52 },
-  { name: "Emergency Response", pct: 40 },
-];
-
-const guideStatus = [
-  { label: "On Track", value: 18 },
-  { label: "Behind", value: 5 },
-  { label: "Inactive", value: 1 },
-];
-
-const guideBarData = [
-  { label: "Guide A", pct: 85 },
-  { label: "Guide B", pct: 55 },
-  { label: "Guide C", pct: 72 },
-  { label: "Guide D", pct: 90 },
-  { label: "Guide E", pct: 65 },
-];
-
-const trainingModules = [
+// ── Mock feed data (replaced with Supabase queries in later sprints) ──
+const FEED_ITEMS = [
   {
-    name: "Plants Identification",
-    category: "Plants",
-    enrolled: 12,
-    status: "Active",
-    next: "Jan 15, 2024",
+    id: 1,
+    icon: "report_problem",
+    iconBg: "bg-[#DC2E27]/10",
+    iconColor: "text-[#DC2E27]",
+    title: "Unsanctioned Movement Detected",
+    time: "02 MIN AGO",
+    body: "Grid 42-B. 3 individuals without active permits. Ranger team dispatching.",
+    action: "Assign Guide",
+    fill: true,
   },
   {
-    name: "Wildlife Behavior",
-    category: "Wildlife",
-    enrolled: 10,
-    status: "Active",
-    next: "Jan 22, 2024",
+    id: 2,
+    icon: "school",
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-800",
+    title: "Module Completion: Advanced Tracking",
+    time: "14 MIN AGO",
+    body: "Ahmad bin Yusuf (Ranger ID: SFC-771) has completed the certification.",
+    action: "Verify Bio",
+    fill: true,
+  },
+  {
+    id: 3,
+    icon: "info",
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-800",
+    title: "System Update: Biodiversity 2.4",
+    time: "1 HOUR AGO",
+    body: "New AR overlays added for orchid identification in Guide Track.",
+    action: "Release Notes",
+    fill: true,
   },
 ];
 
-const desktopSessions = [
-  { date: "Jan 15, 2024", module: "Plants Identification", park: "Bako National Park", enrolled: 12, status: "Scheduled" },
-  { date: "Jan 20, 2024", module: "Wildlife Behavior", park: "Mulu National Park", enrolled: 10, status: "Scheduled" },
-  { date: "Jan 25, 2024", module: "Trail Safety", park: "Similajau National Park", enrolled: 11, status: "Canceled" },
-  { date: "Jan 10, 2024", module: "Emergency Response", park: "Kubah National Park", enrolled: 12, status: "Completed" },
+const PATROL_MEMBERS = [
+  { name: "Sgt. Tan Boon",    track: "Ranger Track Level 4", progress: 66 },
+  { name: "Rgr. Siti Aminah", track: "Guide Track Level 2",  progress: 33 },
 ];
 
-const mobileSessions = [
-  { title: "Plants Basics – Session 3", location: "Bako National Park", date: "19 Mar, 10:00 AM", status: "Scheduled" },
-  { title: "Plants Basics – Session 3", location: "Bako National Park", date: "19 Mar, 10:00 AM", status: "Completed" },
+const STATS = [
+  { label: "Active Rangers",   value: "1,248", badge: "+12% vs LW",   color: "border-primary",    valueColor: "text-primary",    badgeColor: "text-primary-container" },
+  { label: "Training Modules", value: "86%",   badge: "Completion",   color: "border-primary",    valueColor: "text-primary",    badgeColor: "text-primary-container" },
+  { label: "Active Incidents", value: "04",    badge: "High Priority", color: "border-[#DC2E27]", valueColor: "text-[#DC2E27]",  badgeColor: "text-[#DC2E27] animate-pulse" },
+  { label: "Analytics Score",  value: "9.4",   badge: "System Health", color: "border-secondary", valueColor: "text-secondary",  badgeColor: "text-secondary-container" },
 ];
 
-const quickActions = ["Create New Session", "Assign Guides", "Open Training Modules", "View AI Alerts"];
+const BAR_HEIGHTS = ["h-4", "h-6", "h-8", "h-12", "h-7", "h-10", "h-12"];
 
-// ─── Sub-components ────────────────────────────────────────────────────────
+export default function DashboardPage() {
+  const router = useRouter();
+  const supabase = createClient();
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    Active: "bg-[#5B9A3E] text-white",
-    Scheduled: "bg-[#F0A500] text-white",
-    Canceled: "bg-red-500 text-white",
-    Completed: "bg-[#1B3A24] text-white",
-    "On track": "bg-[#8DC63F] text-[#1B3A24]",
-  };
-  return (
-    <span className={`inline-block rounded-full px-3 py-0.5 text-xs font-semibold ${map[status] ?? "bg-gray-200 text-gray-700"}`}>
-      {status}
-    </span>
-  );
-}
+  const [user,    setUser]    = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-function Logo({ size = 36 }: { size?: number }) {
-  return (
-    <div
-      style={{ width: size, height: size, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, padding: 3, borderRadius: 6, background: "#f5f0e6", border: "1px solid #d4c9b0", flexShrink: 0 }}
-    >
-      <div style={{ background: "#F0A500", borderRadius: 2 }} />
-      <div style={{ background: "#1B3A24", borderRadius: 2 }} />
-      <div style={{ background: "#2D6A3F", borderRadius: 2 }} />
-      <div style={{ background: "#F0A500", borderRadius: 2 }} />
-    </div>
-  );
-}
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { router.push("/login"); return; }
+      setUser(user);
+      setLoading(false);
+    });
+  }, []);
 
-function GuideBarChart() {
-  const chartH = 110;
-  const barW = 30;
-  const gap = 18;
-  const leftPad = 32;
-  const svgW = leftPad + guideBarData.length * (barW + gap);
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface">
+        <span className="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span>
+      </div>
+    );
+  }
+
+  const userRole = (user?.user_metadata?.role ?? "GUIDE") as AppRole;
+  const userName = user?.user_metadata?.full_name ?? user?.email ?? "Guardian";
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   return (
-    <svg width="100%" viewBox={`0 0 ${svgW} ${chartH + 28}`} preserveAspectRatio="xMidYMid meet">
-      {[0, 25, 50, 75, 100].map((tick) => {
-        const y = chartH - (tick / 100) * chartH;
-        return (
-          <g key={tick}>
-            <line x1={leftPad} y1={y} x2={svgW} y2={y} stroke="#e5e7eb" strokeWidth={1} />
-            <text x={leftPad - 4} y={y + 4} textAnchor="end" fontSize={9} fill="#9ca3af">
-              {tick}%
-            </text>
-          </g>
-        );
-      })}
-      {guideBarData.map((g, i) => {
-        const barH = (g.pct / 100) * chartH;
-        const x = leftPad + i * (barW + gap);
-        const y = chartH - barH;
-        return (
-          <g key={g.label}>
-            <rect x={x} y={y} width={barW} height={barH} rx={4} fill="#4a7c3f" />
-            <text x={x + barW / 2} y={chartH + 16} textAnchor="middle" fontSize={9} fill="#6b7280">
-              {g.label}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-// ─── Icons ──────────────────────────────────────────────────────────────────
-
-const icons = {
-  bell: (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-    </svg>
-  ),
-  dashboard: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-    </svg>
-  ),
-  guides: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
-    </svg>
-  ),
-  training: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-    </svg>
-  ),
-  assess: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-    </svg>
-  ),
-  alert: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-    </svg>
-  ),
-  notif: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-    </svg>
-  ),
-  more: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h.01M12 12h.01M19 12h.01" />
-    </svg>
-  ),
-  search: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803a7.5 7.5 0 0010.607 10.607z" />
-    </svg>
-  ),
-  user: (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-  ),
-  chevron: (
-    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
-  ),
-};
-
-const sidebarNav = [
-  { label: "Dashboard", icon: icons.dashboard },
-  { label: "My Guides", icon: icons.guides },
-  { label: "My Training Modules", icon: icons.training },
-  { label: "Assessments", icon: icons.assess },
-  { label: "AI Alerts", icon: icons.alert },
-  { label: "Notifications", icon: icons.notif },
-];
-
-const bottomNav = [
-  { label: "Dashboard", icon: icons.dashboard },
-  { label: "My Guides", icon: icons.guides },
-  { label: "Training", icon: icons.training },
-  { label: "Assessments", icon: icons.assess },
-  { label: "More", icon: icons.more },
-];
-
-// ─── Main Page ──────────────────────────────────────────────────────────────
-
-export default function MentorDashboard() {
-  const [activeNav, setActiveNav] = useState("Dashboard");
-
-  return (
-    <div className="min-h-screen bg-[#F7F2E8] font-sans text-gray-900">
-
-      {/* ── Desktop Sidebar ── */}
-      <aside className="hidden lg:flex fixed inset-y-0 left-0 z-30 w-52 flex-col bg-[#EEF5E0] border-r border-green-100">
-        {/* Brand */}
-        <div className="flex items-center gap-2.5 px-4 py-4 border-b border-green-100">
-          <Logo size={34} />
-          <div className="leading-none">
-            <p className="text-[9px] font-bold text-[#2D6A3F] uppercase tracking-wide">Sarawak</p>
-            <p className="text-[9px] font-bold text-[#2D6A3F] uppercase tracking-wide">Forestry</p>
-          </div>
+    <div className="bg-surface text-on-surface flex min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* ── Sidebar ── */}
+      <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
+        <div className="mb-10 px-4">
+          <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
+          <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
         </div>
-        {/* Nav */}
-        <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-          {sidebarNav.map((item) => (
-            <button
-              key={item.label}
-              onClick={() => setActiveNav(item.label)}
-              className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors text-left ${
-                activeNav === item.label
-                  ? "bg-[#1B3A24] text-white"
-                  : "text-[#2D5A3D] hover:bg-green-100"
+
+        <nav className="flex-1 space-y-2">
+          {[
+            { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: true  },
+            { href: "/dashboard/training",  icon: "forest",      label: "Ranger Track", active: false },
+            { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
+            { href: "/dashboard/incidents", icon: "warning",     label: "Incidents",    active: false },
+            // A2.4 — Analytics only for HOD+
+            ...(can(userRole, "view:reports") ? [{ href: "/dashboard/analytics", icon: "leaderboard", label: "Analytics", active: false }] : []),
+          ].map(({ href, icon, label, active }) => (
+            <Link
+              key={label}
+              href={href}
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
+                active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"
               }`}
             >
-              {item.icon}
-              {item.label}
-            </button>
+              <span className="material-symbols-outlined">{icon}</span>
+              {label}
+            </Link>
           ))}
         </nav>
+
+        <div className="mt-auto space-y-2 pt-6">
+          <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
+            Live Incident
+          </button>
+          <div className="pt-4 space-y-1">
+            <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
+              <span className="material-symbols-outlined text-sm">help</span> Support
+            </a>
+            <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
+              <span className="material-symbols-outlined text-sm">logout</span> Sign Out
+            </button>
+          </div>
+        </div>
       </aside>
 
-      {/* ── Desktop Top Bar ── */}
-      <header className="hidden lg:flex fixed top-0 left-52 right-0 z-20 h-14 bg-[#F7F2E8] border-b border-[#e0d9cc] items-center px-6 gap-4">
-        {/* Search */}
-        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 w-56 text-sm text-gray-400">
-          {icons.search}
-          <span>Search</span>
-        </div>
-        <div className="flex-1" />
-        {/* Bell */}
-        <button className="relative text-gray-500 hover:text-gray-700">
-          {icons.bell}
-          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500" />
-        </button>
-        {/* Avatar */}
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer hover:text-gray-900">
-          <div className="h-8 w-8 rounded-full bg-[#1B3A24] text-white flex items-center justify-center text-xs font-bold">
-            MU
+      {/* ── Main content ── */}
+      <main className="ml-64 flex-1 flex flex-col min-h-screen">
+        {/* Top bar */}
+        <header className="bg-emerald-950/90 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-12 py-4 shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
+          <div className="flex items-center gap-12">
+            <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
+            <nav className="hidden md:flex gap-8 items-center text-sm">
+              <Link href="/training"      className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Training</Link>
+              <Link href="/announcements" className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Programmes</Link>
+              <span className="text-white border-b-2 border-[#DC2E27] pb-1 tracking-tight cursor-default">Dashboard</span>
+            </nav>
           </div>
-          Mentor User
-          {icons.chevron}
-        </div>
-      </header>
-
-      {/* ── Mobile Header ── */}
-      <header className="lg:hidden sticky top-0 z-20 bg-[#EEF5E0] border-b border-green-100 px-4 pt-3 pb-3">
-        <div className="flex items-center justify-between">
-          {/* Left: logo + title */}
-          <div className="flex items-center gap-2.5">
-            <Logo size={36} />
-            <div className="leading-tight">
-              <p className="text-[9px] font-bold text-[#2D6A3F] uppercase tracking-wide">Sarawak Forestry</p>
-              <h1 className="text-base font-bold text-[#1B3A24]">Mentor Dashboard</h1>
-              <p className="text-xs text-gray-500">Good afternoon, Jane</p>
+          <div className="flex items-center gap-6">
+            <div className="relative">
+              <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">notifications</span>
+              <span className="absolute top-2 right-2 w-2 h-2 bg-[#DC2E27] rounded-full" />
+            </div>
+            {/* A2.4 — Settings only for HOD+ */}
+            {can(userRole, "manage:department") && (
+              <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">settings</span>
+            )}
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full border-2 border-emerald-500/30 bg-primary-container flex items-center justify-center">
+                <span className="material-symbols-outlined text-white text-xl">person</span>
+              </div>
+              <div className="hidden md:block">
+                <p className="text-white text-xs font-bold truncate max-w-[120px]">{userName}</p>
+                <p className="text-emerald-100/50 text-[10px] uppercase tracking-wider">{userRole.replace("_", " ")}</p>
+              </div>
             </div>
           </div>
-          {/* Right: bell + avatar */}
-          <div className="flex items-center gap-3">
-            <button className="relative text-[#1B3A24]">
-              {icons.bell}
-              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-red-500" />
-            </button>
-            <div className="h-9 w-9 rounded-full bg-[#1B3A24] text-white flex items-center justify-center text-xs font-bold">
-              JN
-            </div>
-          </div>
-        </div>
-      </header>
+        </header>
 
-      {/* ── Main Content ── */}
-      <main className="lg:ml-52 lg:pt-14 pb-24 lg:pb-8">
-
-        {/* ====== DESKTOP LAYOUT ====== */}
-        <div className="hidden lg:block px-8 py-6 space-y-6">
-
-          {/* Page title + actions */}
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">Mentor Dashboard</h1>
-            <div className="flex gap-3">
-              <button className="rounded-lg bg-[#F0A500] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-500 transition-colors">
-                Create New Session
-              </button>
-              <button className="rounded-lg bg-[#1B3A24] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#2D5A3D] transition-colors">
-                Assign Guides
-              </button>
-            </div>
-          </div>
-
-          {/* Stat cards (4 cols) */}
-          <div className="grid grid-cols-4 gap-4">
-            {desktopStats.map((s) => (
-              <div key={s.label} className="rounded-xl bg-[#1B3A24] text-white px-5 py-4 shadow-sm">
-                <p className="text-xs text-green-200 font-medium">{s.label}</p>
-                <p className="mt-1.5 text-3xl font-bold">{s.value}</p>
+        <section className="p-8 space-y-8">
+          {/* Stats grid */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {STATS.map(({ label, value, badge, color, valueColor, badgeColor }) => (
+              <div key={label} className={`bg-surface-container-low p-6 rounded-xl space-y-2 border-l-4 ${color}`}>
+                <p className="text-on-surface-variant uppercase text-[0.6875rem] font-bold tracking-widest">{label}</p>
+                <div className="flex items-end justify-between">
+                  <span className={`text-3xl font-black ${valueColor}`}>{value}</span>
+                  <span className={`text-xs font-bold ${badgeColor}`}>{badge}</span>
+                </div>
               </div>
             ))}
           </div>
 
-          {/* Middle row: training modules table + guide progress chart */}
-          <div className="grid grid-cols-5 gap-4">
-            {/* Training Modules (wider) */}
-            <div className="col-span-3 rounded-xl bg-[#1B3A24] text-white overflow-hidden shadow-sm">
-              <div className="px-5 py-3 border-b border-white/10">
-                <h2 className="font-semibold text-sm">My Training Modules</h2>
+          {/* Bento grid */}
+          <div className="grid grid-cols-12 gap-8 items-start">
+            {/* Main feed */}
+            <div className="col-span-12 lg:col-span-8 space-y-8">
+              <div className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
+                <div className="relative h-64 overflow-hidden">
+                  <div
+                    className="w-full h-full bg-cover bg-center"
+                    style={{
+                      backgroundImage: "url('https://images.unsplash.com/photo-1448375240586-882707db888b?w=1200&q=80')",
+                      backgroundBlendMode: "color-burn",
+                      backgroundColor: "rgba(1,45,29,0.2)",
+                    }}
+                  />
+                  <div className="absolute inset-0 p-8 flex flex-col justify-end bg-gradient-to-t from-primary/80 to-transparent">
+                    <h2 className="text-white text-3xl font-bold tracking-tight">Zone Alpha Surveillance</h2>
+                    <p className="text-emerald-100/80 max-w-md text-sm">Real-time biodiversity monitoring and training track integration for Bako National Park.</p>
+                  </div>
+                  <div className="absolute top-6 right-6 flex gap-2">
+                    <span className="bg-primary/40 backdrop-blur-md text-white text-[0.625rem] px-3 py-1 rounded-full uppercase tracking-tighter border border-white/20">Live GPS Active</span>
+                    <span className="bg-[#DC2E27]/40 backdrop-blur-md text-white text-[0.625rem] px-3 py-1 rounded-full uppercase tracking-tighter border border-white/20">AI Detection On</span>
+                  </div>
+                </div>
+
+                <div className="p-8">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-primary">Training Alerts &amp; Incidents</h3>
+                    {can(userRole, "view:own-guides") && (
+                      <button className="text-primary text-sm font-bold flex items-center gap-2 hover:underline">
+                        View Full Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    {FEED_ITEMS.map((item) => (
+                      <div key={item.id} className="flex items-center gap-6 p-4 bg-surface-container-low rounded-xl group hover:bg-surface-container-high transition-all">
+                        <div className={`h-12 w-12 rounded-full ${item.iconBg} flex items-center justify-center ${item.iconColor} shrink-0`}>
+                          <span className="material-symbols-outlined" style={item.fill ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+                            {item.icon}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-bold text-primary text-sm">{item.title}</h4>
+                            <span className="text-[0.625rem] text-on-surface-variant font-medium shrink-0 ml-2">{item.time}</span>
+                          </div>
+                          <p className="text-sm text-secondary mt-0.5">{item.body}</p>
+                        </div>
+                        {/* A2.4 — Action buttons only for SENIOR_GUIDE+ */}
+                        {can(userRole, "mentor:guides") && (
+                          <button className="bg-primary text-white text-xs px-4 py-2 rounded-lg font-bold opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                            {item.action}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-green-200">
-                    <th className="px-5 py-2.5 text-left font-medium">Module Name</th>
-                    <th className="px-3 py-2.5 text-left font-medium">Category</th>
-                    <th className="px-3 py-2.5 text-center font-medium">Enrolled Guides</th>
-                    <th className="px-3 py-2.5 text-center font-medium">Status</th>
-                    <th className="px-5 py-2.5 text-left font-medium">Next Session Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trainingModules.map((m, i) => (
-                    <tr key={i} className="border-t border-white/10 hover:bg-white/5 transition-colors">
-                      <td className="px-5 py-3 font-medium">{m.name}</td>
-                      <td className="px-3 py-3 text-green-100">{m.category}</td>
-                      <td className="px-3 py-3 text-center">{m.enrolled}</td>
-                      <td className="px-3 py-3 text-center">
-                        <StatusBadge status={m.status} />
-                      </td>
-                      <td className="px-5 py-3 text-green-100">{m.next}</td>
-                    </tr>
+            </div>
+
+            {/* Right sidebar widgets */}
+            <div className="col-span-12 lg:col-span-4 space-y-8">
+              {/* Active patrols */}
+              <div className="bg-surface-container-lowest p-6 rounded-xl shadow-[0_20px_40px_rgba(25,28,29,0.06)] space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-bold text-primary">Active Patrols</h3>
+                  <span className="text-[0.625rem] text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-bold uppercase">12 Teams Out</span>
+                </div>
+                <div className="aspect-square rounded-xl overflow-hidden relative border border-outline-variant/15 bg-primary-container/20">
+                  <div className="absolute inset-0 bg-primary/20" />
+                  <div className="absolute top-4 left-4 flex flex-col gap-1">
+                    <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-lg shadow-sm flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-[#DC2E27] animate-ping" />
+                      <span className="text-[0.5rem] font-bold text-primary uppercase">POI 02: Alert</span>
+                    </div>
+                    <div className="bg-emerald-950/90 backdrop-blur-sm p-1.5 rounded-lg shadow-sm flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span className="text-[0.5rem] font-bold text-white uppercase">Team Alpha: Active</span>
+                    </div>
+                  </div>
+                  <div className="absolute bottom-4 right-4 text-[10px] text-emerald-400/80 font-mono tracking-tighter leading-none text-right">
+                    LAT: 1.5533° N<br />LON: 110.3592° E<br />ALT: 42M
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {PATROL_MEMBERS.map(({ name, track, progress }) => (
+                    <div key={name} className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-primary text-xl">person</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-primary truncate">{name}</p>
+                        <p className="text-[10px] text-secondary">{track}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[10px] font-mono text-emerald-700">Patrolling</p>
+                        <div className="h-1 w-12 bg-emerald-200 rounded-full mt-1">
+                          <div className="h-1 bg-emerald-500 rounded-full" style={{ width: `${progress}%` }} />
+                        </div>
+                      </div>
+                    </div>
                   ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Guide Progress chart */}
-            <div className="col-span-2 rounded-xl bg-white border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100">
-                <h2 className="font-semibold text-sm text-gray-800">Guide Progress</h2>
-              </div>
-              <div className="px-4 py-3">
-                <GuideBarChart />
-              </div>
-            </div>
-          </div>
-
-          {/* Upcoming Sessions table */}
-          <div className="rounded-xl bg-[#1B3A24] text-white overflow-hidden shadow-sm">
-            <div className="px-5 py-3 border-b border-white/10">
-              <h2 className="font-semibold text-sm">Upcoming Sessions</h2>
-            </div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-green-200">
-                  <th className="px-5 py-2.5 text-left font-medium">Session Date</th>
-                  <th className="px-5 py-2.5 text-left font-medium">Module Name</th>
-                  <th className="px-5 py-2.5 text-left font-medium">Park</th>
-                  <th className="px-5 py-2.5 text-center font-medium">Guides Enrolled</th>
-                  <th className="px-5 py-2.5 text-center font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {desktopSessions.map((s, i) => (
-                  <tr key={i} className="border-t border-white/10 hover:bg-white/5 transition-colors">
-                    <td className="px-5 py-3">{s.date}</td>
-                    <td className="px-5 py-3 font-medium">{s.module}</td>
-                    <td className="px-5 py-3 text-green-100">{s.park}</td>
-                    <td className="px-5 py-3 text-center">{s.enrolled}</td>
-                    <td className="px-5 py-3 text-center">
-                      <StatusBadge status={s.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* ====== MOBILE LAYOUT ====== */}
-        <div className="lg:hidden px-4 py-4 space-y-4">
-
-          {/* Stat cards 2×2 grid */}
-          <div className="grid grid-cols-2 gap-3">
-            {mobileStats.map((s, i) => (
-              <div key={i} className="rounded-2xl bg-[#1B3A24] text-white px-4 py-3.5 shadow-sm">
-                <p className="text-xs text-green-200">{s.label}</p>
-                <div className="mt-1 flex items-end gap-2">
-                  <p className="text-3xl font-bold leading-none">{s.value}</p>
-                  {s.badge && <StatusBadge status={s.badge} />}
                 </div>
-                {s.sub && <p className="mt-1 text-xs text-green-300">{s.sub}</p>}
               </div>
+
+              {/* A2.4 — Analytics widget only for HOD+ */}
+              {can(userRole, "view:reports") && (
+                <div className="bg-primary text-white p-6 rounded-xl space-y-4 relative overflow-hidden">
+                  <div className="relative z-10">
+                    <h3 className="text-sm font-bold text-emerald-100 uppercase tracking-widest">Incident Response Time</h3>
+                    <div className="flex items-baseline gap-2 mt-2">
+                      <span className="text-3xl font-black">4.2m</span>
+                      <span className="text-emerald-400 text-xs">-1.8m from last month</span>
+                    </div>
+                    <div className="mt-6 h-12 flex items-end gap-1">
+                      {BAR_HEIGHTS.map((h, i) => (
+                        <div
+                          key={i}
+                          className={`flex-1 rounded-t hover:bg-white/40 transition-all ${h} ${
+                            i === BAR_HEIGHTS.length - 1 ? "bg-[#DC2E27]" : "bg-white/10"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="absolute -right-12 -top-12 w-32 h-32 bg-white/5 rounded-full blur-2xl" />
+                  <div className="absolute -left-6 -bottom-6 w-24 h-24 bg-emerald-400/5 rounded-full blur-xl" />
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <footer className="w-full py-8 mt-auto bg-emerald-950 flex flex-col md:flex-row justify-between items-center px-12 gap-4">
+          <div className="text-sm font-bold text-white">Digital Sentinel <span className="font-normal opacity-50 ml-2">Guardian Portal</span></div>
+          <div className="flex flex-wrap justify-center gap-6">
+            {["Accessibility", "Privacy Policy", "Institutional Links", "Contact Sentinel"].map((l) => (
+              <a key={l} href="#" className="text-xs font-light tracking-wide text-emerald-100 opacity-70 hover:opacity-100 hover:text-[#DC2E27] transition-all">{l}</a>
             ))}
           </div>
-
-          {/* Quick Actions */}
-          <div>
-            <h2 className="text-sm font-bold text-gray-900 mb-2">Quick Actions</h2>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {quickActions.map((a) => (
-                <button
-                  key={a}
-                  className="flex-shrink-0 rounded-full border border-gray-300 bg-white px-3.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Module Progress */}
-          <div className="rounded-2xl bg-[#1B3A24] text-white px-5 py-4 shadow-sm">
-            <h2 className="font-semibold text-sm mb-4">Module Progress</h2>
-            <div className="space-y-3">
-              {moduleProgress.map((m) => (
-                <div key={m.name}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-green-100">{m.name}</span>
-                    <span className="font-semibold">{m.pct}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/20 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-[#8DC63F] transition-all"
-                      style={{ width: `${m.pct}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Guide Status */}
-          <div className="rounded-2xl bg-[#1B3A24] text-white px-5 py-4 shadow-sm">
-            <h2 className="font-semibold text-sm mb-4">Guide Status</h2>
-            <div className="flex justify-around text-center">
-              {guideStatus.map((g) => (
-                <div key={g.label}>
-                  <p className="text-xs text-green-200">{g.label}</p>
-                  <p className="text-3xl font-bold mt-1">{g.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Upcoming Sessions */}
-          <div>
-            <h2 className="text-sm font-bold text-gray-900 mb-2">Upcoming Sessions</h2>
-            <div className="space-y-3">
-              {mobileSessions.map((s, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between rounded-2xl bg-white border border-gray-100 shadow-sm px-4 py-3.5"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{s.title}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {s.location} &bull; {s.date}
-                    </p>
-                  </div>
-                  <StatusBadge status={s.status} />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          <p className="text-xs font-light tracking-wide text-emerald-100 opacity-50">© 2024 Sarawak Forestry Corporation. All rights reserved.</p>
+        </footer>
       </main>
-
-      {/* ── Mobile Bottom Navigation ── */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex">
-        {bottomNav.map((item) => (
-          <button
-            key={item.label}
-            onClick={() => setActiveNav(item.label)}
-            className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${
-              activeNav === item.label ? "text-[#1B3A24]" : "text-gray-400"
-            }`}
-          >
-            <span className={`p-1 rounded-lg ${activeNav === item.label ? "bg-[#EEF5E0]" : ""}`}>
-              {item.icon}
-            </span>
-            {item.label}
-          </button>
-        ))}
-      </nav>
     </div>
   );
 }

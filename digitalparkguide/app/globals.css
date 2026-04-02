@@ -1,26 +1,90 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* SFC Material Design 3 colour tokens — used via bg-primary, text-on-surface, etc. */
+@theme {
+  /* Primary — Sarawak Forest Green */
+  --color-primary:                  #012d1d;
+  --color-primary-container:        #1b4332;
+  --color-on-primary:               #ffffff;
+  --color-on-primary-container:     #86af99;
+  --color-primary-fixed:            #c1ecd4;
+  --color-primary-fixed-dim:        #a5d0b9;
+  --color-on-primary-fixed:         #002114;
+  --color-on-primary-fixed-variant: #274e3d;
+  --color-inverse-primary:          #a5d0b9;
+  --color-surface-tint:             #3f6653;
+
+  /* Secondary — Steel Blue */
+  --color-secondary:                    #4c616c;
+  --color-secondary-container:          #cfe6f2;
+  --color-on-secondary:                 #ffffff;
+  --color-on-secondary-container:       #526772;
+  --color-secondary-fixed:              #cfe6f2;
+  --color-secondary-fixed-dim:          #b4cad6;
+  --color-on-secondary-fixed:           #071e27;
+  --color-on-secondary-fixed-variant:   #354a53;
+
+  /* Tertiary — Alert Red */
+  --color-tertiary:                    #550002;
+  --color-tertiary-container:          #7e0005;
+  --color-on-tertiary:                 #ffffff;
+  --color-on-tertiary-container:       #ff8172;
+  --color-tertiary-fixed:              #ffdad5;
+  --color-tertiary-fixed-dim:          #ffb4aa;
+  --color-on-tertiary-fixed:           #410001;
+  --color-on-tertiary-fixed-variant:   #930007;
+
+  /* Error */
+  --color-error:             #ba1a1a;
+  --color-error-container:   #ffdad6;
+  --color-on-error:          #ffffff;
+  --color-on-error-container: #93000a;
+
+  /* Background / Surface */
+  --color-background:    #f8f9fa;
+  --color-on-background: #191c1d;
+  --color-surface:       #f8f9fa;
+  --color-on-surface:    #191c1d;
+  --color-surface-dim:           #d9dadb;
+  --color-surface-bright:        #f8f9fa;
+  --color-surface-container-lowest:  #ffffff;
+  --color-surface-container-low:     #f3f4f5;
+  --color-surface-container:         #edeeef;
+  --color-surface-container-high:    #e7e8e9;
+  --color-surface-container-highest: #e1e3e4;
+
+  /* Surface Variant / Outline */
+  --color-surface-variant:     #e1e3e4;
+  --color-on-surface-variant:  #414844;
+  --color-inverse-surface:     #2e3132;
+  --color-inverse-on-surface:  #f0f1f2;
+  --color-outline:             #717973;
+  --color-outline-variant:     #c1c8c2;
+
+  /* Fonts */
+  --font-headline: "Inter", sans-serif;
+  --font-body:     "Inter", sans-serif;
+  --font-label:    "Inter", sans-serif;
+
+  /* Border radius */
+  --radius:    0.125rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.5rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Utility helpers that mirror Stitch design glass/overlay classes */
+.rainforest-overlay {
+  background: linear-gradient(to right, rgba(1, 45, 29, 0.85), rgba(1, 45, 29, 0.35));
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.glass-panel {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Inter", Arial, sans-serif;
+  background: var(--color-background);
+  color: var(--color-on-background);
 }

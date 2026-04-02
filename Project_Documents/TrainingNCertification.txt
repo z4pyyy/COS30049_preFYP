@@ -1,0 +1,18 @@
+Training & Certification
+The platform operates as a park-specific e-learning system. SFC Management and HoD define the certification standards and training scopes for each Totally Protected Area (TPA), covering two major certification tracks:
+
+Guide Training — focused on park biodiversity, habitats, wildlife, and tour facilitation, qualifying guides to lead visitor tours within a specific park
+Ranger Training — focused on park management, conservation maintenance, and operational duties within a specific park
+
+Each TPA issues its own badge, and badges are park-specific and non-transferable. A guide holding a badge for Park A is only eligible to operate in Park A; guiding Park B requires completing and passing the separate certification for Park B. The same principle applies to rangers.
+Guides and rangers access training modules and complete courses and quizzes at their own pace through the web browser or PWA. However, final evaluation, badge approval, and certificate issuance remain the responsibility of the HoD. The system also tracks badge renewal over time and automatically nominates long-serving badge holders for promotion to Senior status.
+Senior guides and rangers retain their standard operational role but are additionally assigned a group of junior guides or rangers to monitor. They can view their assigned group's training progress and evidence recordings, and provide assistance where needed, while the HoD retains full administrative oversight across all users.
+AI Monitoring System
+During guided tours, a pre-trained model runs locally on an edge device (a laptop serves as the prototype in this project), analysing a live webcam feed for abnormal activities such as plant damage, wildlife disturbance, or regulation violations. On detection, the system triggers an immediate on-device sound alert to notify the guide or ranger on the spot, while simultaneously capturing and compressing the evidence clip (H.264) for storage. The clip and its associated metadata are uploaded to Supabase Storage and logged in the database. When the device is offline, clips are queued locally and synced automatically once connectivity is restored.
+Administration & Access Control
+The platform enforces a role-based access model:
+
+SFC Management (Superadmin) — system-wide access, defines certification standards and manages HoD accounts
+HoD (Admin) — manages training modules, reviews certification applications, schedules interviews, approves and issues badges, and has full access to all evidence recordings and guide/ranger metadata
+Senior Guide / Senior Ranger — views training progress and evidence clips for their assigned group only
+Guide / Ranger — accesses their own training content, progress, and personal evidence recordings only

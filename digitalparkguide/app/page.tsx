@@ -6,40 +6,60 @@ import { cookies } from "next/headers";
 import ProfileDropdown from "@/components/ProfileDropdown";
 
 async function getAnnouncements() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll() {},
+        },
+      }
+    );
+    const { data, error } = await supabase
+      .from("announcements")
+      .select("id, title, content, category, created_at")
+      .eq("published", true)
+      .order("created_at", { ascending: false })
+      .limit(6);
+    
+    if (error) {
+      console.error("Failed to fetch announcements:", error);
+      return [];
     }
-  );
-  const { data } = await supabase
-    .from("announcements")
-    .select("id, title, content, category, created_at")
-    .eq("published", true)
-    .order("created_at", { ascending: false })
-    .limit(6);
-  return data ?? [];
+    return data ?? [];
+  } catch (err) {
+    console.error("Error in getAnnouncements:", err);
+    return [];
+  }
 }
 
 async function getAuthUser() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll() {},
+        },
+      }
+    );
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) {
+      console.error("Failed to fetch auth user:", error);
+      return null;
     }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
+    return user;
+  } catch (err) {
+    console.error("Error in getAuthUser:", err);
+    return null;
+  }
 }
 
 function formatDate(iso: string) {

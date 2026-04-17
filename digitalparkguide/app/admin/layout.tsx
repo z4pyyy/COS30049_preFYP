@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import BackToSiteButton from "@/components/BackToSiteButton";
 
 const NAV = [
   { href: "/admin",       icon: "dashboard",    label: "Overview" },
@@ -47,10 +48,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </nav>
 
         <div className="mt-auto pt-6 border-t border-outline-variant/20">
-          <Link href="/" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-100 rounded-xl transition-all text-sm">
-            <span className="material-symbols-outlined text-base">arrow_back</span>
-            <span className="font-medium text-[0.6875rem] uppercase tracking-widest">Back to Site</span>
-          </Link>
+          <BackToSiteButton />
           <div className="flex items-center gap-3 px-4 py-3 mt-2">
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-black">
               {initials}

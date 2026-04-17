@@ -50,15 +50,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(dest, request.url))
   }
 
-  // Superadmin visiting '/' → send to /admin
-  if (user && pathname === '/') {
-    const role = await getRole()
-    if (role === 'SUPERADMIN') {
-      return NextResponse.redirect(new URL('/admin', request.url))
-    }
-    return supabaseResponse
-  }
-
   // Fetch page_access rules (small table, ~10 rows)
   // Sorted by route length DESC so more specific routes match first
   let rules: Array<{ route: string; min_role: string; is_disabled: boolean }> = []

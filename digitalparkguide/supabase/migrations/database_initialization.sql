@@ -391,6 +391,18 @@ INSERT INTO public.page_access (route, label, group_name, min_role, is_locked) V
   ('/announcements', 'Announcements',   'Public',          'PUBLIC_USER', FALSE)
 ON CONFLICT (route) DO NOTHING;
 
+INSERT INTO quizzes (title, passing_score) VALUES ('General Safety', 80);
+
+-- Note: Replace the ID below with the ID from the quiz you just created if necessary, 
+-- or just use this for a quick test:
+INSERT INTO questions (quiz_id, question_text, options, correct_option_index) 
+VALUES (
+  (SELECT id FROM quizzes LIMIT 1), 
+  'What is the first thing to do in an emergency?', 
+  '["Run away", "Call for help", "Take a photo", "Stay quiet"]', 
+  1
+);
+
 
 -- ── 6c. Sample announcements (uncomment for local dev/demo) ──────
 /*

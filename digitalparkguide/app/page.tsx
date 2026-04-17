@@ -50,12 +50,20 @@ async function getAuthUser() {
       }
     );
     const { data: { user }, error } = await supabase.auth.getUser();
-    
+
     if (error) {
       console.error("Failed to fetch auth user:", error);
       return null;
     }
-    return user;
+    if (!user) return null;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    return { user, role: profile?.role ?? null };
   } catch (err) {
     console.error("Error in getAuthUser:", err);
     return null;
@@ -91,8 +99,9 @@ const stats = [
 ];
 
 export default async function HomePage() {
-  const [announcements, user] = await Promise.all([getAnnouncements(), getAuthUser()])
-;
+  const [announcements, authResult] = await Promise.all([getAnnouncements(), getAuthUser()]);
+  const user = authResult?.user ?? null;
+  const role = authResult?.role ?? null;
 
   const featured = announcements[0];
   const rest = announcements.slice(1);
@@ -160,6 +169,7 @@ export default async function HomePage() {
                   <ProfileDropdown
                     name={user.user_metadata?.full_name ?? ""}
                     email={user.email ?? ""}
+                    role={role}
                   />
                 </>
               ) : (

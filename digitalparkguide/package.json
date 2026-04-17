@@ -12,6 +12,7 @@
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.101.1",
     "next": "^16.1.6",
+    "onnxruntime-web": "^1.24.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "twilio": "^5.13.1"

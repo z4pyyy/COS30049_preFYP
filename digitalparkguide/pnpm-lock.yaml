@@ -15,19 +15,16 @@ importers:
         specifier: ^2.101.1
         version: 2.101.1
       next:
-        specifier: 16.1.6
+        specifier: ^16.1.6
         version: 16.1.6(@babel/core@7.29.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       onnxruntime-web:
         specifier: ^1.24.3
         version: 1.24.3
-      postcss:
-        specifier: ^8.5.9
-        version: 8.5.9
       react:
-        specifier: 19.2.3
+        specifier: ^19.2.3
         version: 19.2.3
       react-dom:
-        specifier: 19.2.3
+        specifier: ^19.2.3
         version: 19.2.3(react@19.2.3)
       twilio:
         specifier: ^5.13.1

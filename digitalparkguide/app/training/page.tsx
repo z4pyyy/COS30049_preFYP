@@ -3,6 +3,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import TopNav from "@/components/TopNav";
 
 // A3.3 — SEO metadata
 export const metadata: Metadata = {
@@ -53,24 +54,7 @@ export default async function TrainingPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-primary text-white px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-primary-fixed text-2xl">forest</span>
-          <span className="font-black tracking-tighter uppercase text-sm">SFC Digital Training</span>
-        </div>
-        <nav className="flex items-center gap-4 text-sm font-semibold">
-          <Link href="/announcements" className="text-on-primary-container hover:text-white transition-colors">
-            Announcements
-          </Link>
-          <Link
-            href="/login"
-            className="bg-primary-fixed text-primary px-4 py-2 rounded-full text-xs font-bold hover:bg-white transition-colors"
-          >
-            Sign In
-          </Link>
-        </nav>
-      </header>
+      <TopNav active="training" />
 
       <main className="max-w-5xl mx-auto px-6 py-12">
         {/* Hero */}

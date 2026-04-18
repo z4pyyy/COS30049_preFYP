@@ -60,7 +60,7 @@ export default function QuizBuilder() {
 
     // 3. Bulk Insert Questions
     const { error: qErr } = await supabase.from('questions').insert(questionsToSave);
-    
+
     if (qErr) alert("Error saving questions: " + qErr.message);
     else alert("Quiz Created Successfully!");
   };
@@ -98,16 +98,16 @@ export default function QuizBuilder() {
             <span className="absolute -left-3 top-6 bg-slate-800 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">
               {qIdx + 1}
             </span>
-            <button 
+            <button
                 onClick={() => removeQuestion(qIdx)}
                 className="absolute top-6 right-6 text-slate-300 hover:text-red-500 transition-colors"
                 title="Remove Question"
             >
                 <span className="material-symbols-outlined">delete</span>
             </button>
-            
-            <input 
-              className="w-full text-lg font-bold border-b mb-4 outline-none focus:border-emerald-500" 
+
+            <input
+              className="w-full text-lg font-bold border-b mb-4 outline-none focus:border-emerald-500"
               placeholder="Enter your question here..."
               value={q.question_text}
               onChange={e => updateQuestion(qIdx, 'question_text', e.target.value)}
@@ -116,14 +116,14 @@ export default function QuizBuilder() {
             <div className="grid grid-cols-2 gap-4">
               {q.options.map((opt, oIdx) => (
                 <div key={oIdx} className={`flex items-center border rounded-lg p-2 ${q.correct_option_index === oIdx ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100'}`}>
-                  <input 
-                    type="radio" 
-                    name={`correct-${qIdx}`} 
+                  <input
+                    type="radio"
+                    name={`correct-${qIdx}`}
                     checked={q.correct_option_index === oIdx}
                     onChange={() => updateQuestion(qIdx, 'correct_option_index', oIdx)}
                     className="mr-3"
                   />
-                  <input 
+                  <input
                     className="bg-transparent w-full outline-none text-sm"
                     value={opt}
                     onChange={e => updateOption(qIdx, oIdx, e.target.value)}
@@ -136,13 +136,13 @@ export default function QuizBuilder() {
         ))}
       </div>
 
-      
+
 
       <button onClick={addQuestion} className="mt-8 w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-400 font-bold hover:bg-slate-50">
         + Add Another Question
       </button>
 
-      
+
     </div>
   );
 }

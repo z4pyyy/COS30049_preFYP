@@ -54,8 +54,22 @@ function VerifyOtpForm() {
     if (otp.length < OTP_LENGTH) { setError("Please enter all 6 digits."); return; }
     setLoading(true); setError(null);
 
-    const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
+    const { data: verifyData, error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
     setLoading(false);
+
+    if (!error && verifyData?.user) {
+      const metaName = (verifyData.user.user_metadata?.full_name ?? "").trim();
+      if (metaName) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", verifyData.user.id)
+          .single();
+        if (!profile?.full_name) {
+          await supabase.from("profiles").upsert({ id: verifyData.user.id, full_name: metaName });
+        }
+      }
+    }
 
     if (error) {
       if (error.message.includes("expired") || error.message.includes("Otp has expired")) {

@@ -45,6 +45,7 @@ export default function RegisterPage() {
       email,
       options: {
         shouldCreateUser: true,
+        data: { full_name: fullName },
         emailRedirectTo: `${window.location.origin}/auth/callback?full_name=${encodeURIComponent(fullName)}`,
       },
     });

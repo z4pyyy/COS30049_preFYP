@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDetection } from '@/lib/useDetection'
 import { captureAndUploadEvidence } from '@/lib/evidence'
+import TopNavClient from '@/components/TopNavClient'
 
 export default function MonitorPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -150,6 +151,7 @@ export default function MonitorPage() {
 
   return (
     <div className="relative min-h-screen flex flex-col bg-surface">
+      <TopNavClient />
 
       {/* Alert overlay */}
       {alert && (

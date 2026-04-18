@@ -3,9 +3,22 @@
 import Link from "next/link";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import ProfileDropdown from "@/components/ProfileDropdown";
+import TopNav from "@/components/TopNav";
 
-async function getAnnouncements() {
+type Block =
+  | { type: "h1" | "h2" | "h3" | "paragraph"; text: string }
+  | { type: "attachment"; name: string; url: string; path: string; size: number; mime: string };
+
+interface ListAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  created_at: string;
+  blocks: Block[] | null;
+}
+
+async function getAnnouncements(): Promise<ListAnnouncement[]> {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -20,20 +33,38 @@ async function getAnnouncements() {
     );
     const { data, error } = await supabase
       .from("announcements")
-      .select("id, title, content, category, created_at")
+      .select("id, title, content, category, created_at, blocks")
       .eq("published", true)
       .order("created_at", { ascending: false })
       .limit(6);
-    
+
     if (error) {
       console.error("Failed to fetch announcements:", error);
       return [];
     }
-    return data ?? [];
+    return (data as ListAnnouncement[] | null) ?? [];
   } catch (err) {
     console.error("Error in getAnnouncements:", err);
     return [];
   }
+}
+
+// Remove "[filename.ext]" attachment markers and collapse blank lines
+function stripAttachmentMarkers(text: string): string {
+  return text
+    .replace(/\[[^\[\]\n]+\.[a-zA-Z0-9]{1,5}\]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function firstImage(blocks: Block[] | null): { url: string; name: string } | null {
+  if (!Array.isArray(blocks)) return null;
+  for (const b of blocks) {
+    if (b.type === "attachment" && b.mime?.startsWith("image/")) {
+      return { url: b.url, name: b.name };
+    }
+  }
+  return null;
 }
 
 async function getAuthUser() {
@@ -101,98 +132,14 @@ const stats = [
 export default async function HomePage() {
   const [announcements, authResult] = await Promise.all([getAnnouncements(), getAuthUser()]);
   const user = authResult?.user ?? null;
-  const role = authResult?.role ?? null;
 
   const featured = announcements[0];
   const rest = announcements.slice(1);
+  const featuredImage = featured ? firstImage(featured.blocks) : null;
 
   return (
     <div className="min-h-screen bg-[#f5f5f0] text-gray-900 font-sans">
-
-      {/* ── Top bar (gov-style) ── */}
-      <div className="bg-[#012d1d] text-white text-[11px] py-1.5 px-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <span className="opacity-60">Portal Rasmi | Sarawak Forestry Corporation</span>
-          <div className="flex items-center gap-4 opacity-60">
-            <a href="#" className="hover:opacity-100">BM</a>
-            <span>|</span>
-            <a href="#" className="hover:opacity-100">EN</a>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Main Navbar ── */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Brand */}
-            <Link href="/" className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#012d1d] flex items-center justify-center">
-                <span className="text-white text-lg">🌿</span>
-              </div>
-              <div className="leading-none">
-                <div className="text-sm font-extrabold text-[#012d1d] tracking-tight">Digital Sentinel</div>
-                <div className="text-[10px] text-gray-500 font-medium">Sarawak Forestry Corporation</div>
-              </div>
-            </Link>
-
-            {/* Nav links */}
-            <nav className="hidden md:flex items-center gap-1">
-              {[
-                { label: "Home",          href: "/" },
-                { label: "Training",      href: "/training" },
-                { label: "Announcements", href: "/announcements" },
-                { label: "Biodiversity",  href: "/biodiversity" },
-                { label: "About SFC",     href: "/about" },
-              ].map(({ label, href }) => (
-                <Link
-                  key={label}
-                  href={href}
-                  className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-[#012d1d] hover:bg-gray-50 rounded-md transition-colors"
-                >
-                  {label}
-                </Link>
-              ))}
-            </nav>
-
-            {/* Auth CTA */}
-            <div className="flex items-center gap-2">
-              {user ? (
-                <>
-                  <Link
-                    href="/apply-guide"
-                    className="flex items-center gap-1.5 bg-[#012d1d] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
-                  >
-                    <span className="text-base leading-none">✦</span>
-                    Register as Guide
-                  </Link>
-                  <ProfileDropdown
-                    name={user.user_metadata?.full_name ?? ""}
-                    email={user.email ?? ""}
-                    role={role}
-                  />
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/login"
-                    className="text-sm font-medium text-gray-600 hover:text-[#012d1d] px-3 py-2 rounded-md transition-colors"
-                  >
-                    Sign In
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="flex items-center gap-1.5 bg-[#012d1d] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
-                  >
-                    <span className="text-base leading-none">✦</span>
-                    Register as Guide
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <TopNav active="home" />
 
       {/* ── Hero Banner ── */}
       <section className="relative bg-[#012d1d] text-white overflow-hidden">
@@ -275,6 +222,16 @@ export default async function HomePage() {
               {featured && (
                 <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                   <div className="h-2 bg-[#012d1d]" />
+                  {featuredImage && (
+                    <Link href={`/announcements/${featured.id}`} className="block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={featuredImage.url}
+                        alt={featuredImage.name}
+                        className="w-full max-h-72 object-cover"
+                      />
+                    </Link>
+                  )}
                   <div className="p-6">
                     <div className="flex items-center gap-2 mb-3">
                       <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${CATEGORY_COLORS[featured.category ?? "GENERAL"] ?? CATEGORY_COLORS["GENERAL"]}`}>
@@ -284,7 +241,7 @@ export default async function HomePage() {
                       <span className="ml-auto text-[10px] bg-[#012d1d] text-white px-2 py-0.5 rounded-full font-bold">LATEST</span>
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 leading-snug mb-3">{featured.title}</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{featured.content}</p>
+                    <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">{stripAttachmentMarkers(featured.content)}</p>
                     <Link
                       href={`/announcements/${featured.id}`}
                       className="inline-flex items-center gap-1 mt-4 text-sm font-semibold text-[#012d1d] hover:underline"
@@ -297,24 +254,37 @@ export default async function HomePage() {
 
               {/* Rest of announcements */}
               <div className="grid sm:grid-cols-2 gap-4">
-                {rest.map((a) => (
-                  <Link
-                    key={a.id}
-                    href={`/announcements/${a.id}`}
-                    className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md hover:border-[#012d1d]/20 transition-all group"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${CATEGORY_COLORS[a.category ?? "GENERAL"] ?? CATEGORY_COLORS["GENERAL"]}`}>
-                        {a.category ?? "General"}
-                      </span>
-                      <span className="text-xs text-gray-400 ml-auto">{formatDate(a.created_at)}</span>
-                    </div>
-                    <h4 className="text-sm font-bold text-gray-900 leading-snug line-clamp-2 group-hover:text-[#012d1d] transition-colors">
-                      {a.title}
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{a.content}</p>
-                  </Link>
-                ))}
+                {rest.map((a) => {
+                  const img = firstImage(a.blocks);
+                  return (
+                    <Link
+                      key={a.id}
+                      href={`/announcements/${a.id}`}
+                      className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-[#012d1d]/20 transition-all group"
+                    >
+                      {img && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={img.url}
+                          alt={img.name}
+                          className="w-full h-32 object-cover"
+                        />
+                      )}
+                      <div className="p-5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${CATEGORY_COLORS[a.category ?? "GENERAL"] ?? CATEGORY_COLORS["GENERAL"]}`}>
+                            {a.category ?? "General"}
+                          </span>
+                          <span className="text-xs text-gray-400 ml-auto">{formatDate(a.created_at)}</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-gray-900 leading-snug line-clamp-2 group-hover:text-[#012d1d] transition-colors">
+                          {a.title}
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{stripAttachmentMarkers(a.content)}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </>
           )}

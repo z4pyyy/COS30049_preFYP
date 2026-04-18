@@ -385,8 +385,10 @@ INSERT INTO public.page_access (route, label, group_name, min_role, is_locked) V
   ('/admin',         'Dashboard',       'Admin Console',   'SUPERADMIN',  TRUE),
   ('/admin/users',   'User Management', 'Admin Console',   'SUPERADMIN',  TRUE),
   ('/admin/rbac',    'RBAC Settings',   'Admin Console',   'SUPERADMIN',  TRUE),
-  ('/dashboard',     'Dashboard',       'Staff Dashboard', 'GUIDE',       FALSE),
-  ('/dashboard/hod', 'HoD Panel',       'Staff Dashboard', 'HOD',         FALSE),
+  ('/dashboard',                'Dashboard',       'Staff Dashboard', 'GUIDE',       FALSE),
+  ('/dashboard/hod',            'HoD Panel',       'Staff Dashboard', 'HOD',         FALSE),
+  ('/dashboard/quiz-builder',   'Quiz Builder',    'Staff Dashboard', 'HOD',         FALSE),
+  ('/dashboard/quiz-result',    'Quiz Results',    'Staff Dashboard', 'HOD',         FALSE),
   ('/training',      'Training',        'Training',        'PUBLIC_USER', FALSE),
   ('/announcements', 'Announcements',   'Public',          'PUBLIC_USER', FALSE)
 ON CONFLICT (route) DO NOTHING;

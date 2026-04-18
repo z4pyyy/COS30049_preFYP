@@ -9,7 +9,7 @@ import { can, type AppRole, hasMinRole } from "@/types/roles";
 import type { User } from "@supabase/supabase-js";
 import { ModuleEditorForm, ModuleEditorState } from "@/components/ModuleEditorForm";
 import { ModuleHistoryPanel } from "@/components/ModuleHistoryPanel";
-import ProfileDropdown from "@/components/ProfileDropdown";
+import TopNavView from "@/components/TopNavView";
 
 // ── Mock feed data (replaced with Supabase queries in later sprints) ──
 const FEED_ITEMS = [
@@ -579,7 +579,10 @@ function DashboardContent() {
               { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
               ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: true }] : []),
               ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=module-history", icon: "history", label: "Module History", active: false }] : []),
+              // HoD-only tools
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
             ].map(({ href, icon, label, active }) => (
               <Link
                 key={label}
@@ -612,28 +615,12 @@ function DashboardContent() {
 
         {/* ── Main content ── */}
         <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          {/* Top bar */}
-          <header className="bg-emerald-950/90 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-12 py-4 shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-            <div className="flex items-center gap-12">
-              <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
-              <nav className="hidden md:flex gap-8 items-center text-sm">
-                <Link href="/training"      className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Training</Link>
-                <Link href="/announcements" className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Programmes</Link>
-                <span className="text-white border-b-2 border-[#DC2E27] pb-1 tracking-tight cursor-default">Dashboard</span>
-              </nav>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">notifications</span>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-[#DC2E27] rounded-full" />
-              </div>
-              {/* A2.4 — Settings only for HOD+ */}
-              {can(userRole, "manage:department") && (
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">settings</span>
-              )}
-              <ProfileDropdown name={userName} email={user?.email ?? ""} role={userRole} />
-            </div>
-          </header>
+          <TopNavView
+            authed={!!user}
+            name={userName}
+            email={user?.email ?? ""}
+            role={userRole}
+          />
 
           {editContent}
         </main>
@@ -681,7 +668,10 @@ function DashboardContent() {
               { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
               ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: true }] : []),
               ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=module-history", icon: "history", label: "Module History", active: false }] : []),
+              // HoD-only tools
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
             ].map(({ href, icon, label, active }) => (
               <Link
                 key={label}
@@ -714,28 +704,12 @@ function DashboardContent() {
 
         {/* ── Main content ── */}
         <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          {/* Top bar */}
-          <header className="bg-emerald-950/90 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-12 py-4 shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-            <div className="flex items-center gap-12">
-              <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
-              <nav className="hidden md:flex gap-8 items-center text-sm">
-                <Link href="/training"      className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Training</Link>
-                <Link href="/announcements" className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Programmes</Link>
-                <span className="text-white border-b-2 border-[#DC2E27] pb-1 tracking-tight cursor-default">Dashboard</span>
-              </nav>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">notifications</span>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-[#DC2E27] rounded-full" />
-              </div>
-              {/* A2.4 — Settings only for HOD+ */}
-              {can(userRole, "manage:department") && (
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">settings</span>
-              )}
-              <ProfileDropdown name={userName} email={user?.email ?? ""} role={userRole} />
-            </div>
-          </header>
+          <TopNavView
+            authed={!!user}
+            name={userName}
+            email={user?.email ?? ""}
+            role={userRole}
+          />
 
           {createContent}
         </main>
@@ -952,28 +926,12 @@ function DashboardContent() {
 
         {/* ── Main content ── */}
         <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          {/* Top bar */}
-          <header className="bg-emerald-950/90 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-12 py-4 shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-            <div className="flex items-center gap-12">
-              <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
-              <nav className="hidden md:flex gap-8 items-center text-sm">
-                <Link href="/training"      className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Training</Link>
-                <Link href="/announcements" className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Programmes</Link>
-                <span className="text-white border-b-2 border-[#DC2E27] pb-1 tracking-tight cursor-default">Dashboard</span>
-              </nav>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">notifications</span>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-[#DC2E27] rounded-full" />
-              </div>
-              {/* A2.4 — Settings only for HOD+ */}
-              {can(userRole, "manage:department") && (
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">settings</span>
-              )}
-              <ProfileDropdown name={userName} email={user?.email ?? ""} role={userRole} />
-            </div>
-          </header>
+          <TopNavView
+            authed={!!user}
+            name={userName}
+            email={user?.email ?? ""}
+            role={userRole}
+          />
 
           {modulesContent}
         </main>
@@ -1182,28 +1140,12 @@ function DashboardContent() {
 
         {/* ── Main content ── */}
         <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          {/* Top bar */}
-          <header className="bg-emerald-950/90 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-12 py-4 shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-            <div className="flex items-center gap-12">
-              <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
-              <nav className="hidden md:flex gap-8 items-center text-sm">
-                <Link href="/training"      className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Training</Link>
-                <Link href="/announcements" className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Programmes</Link>
-                <span className="text-white border-b-2 border-[#DC2E27] pb-1 tracking-tight cursor-default">Dashboard</span>
-              </nav>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">notifications</span>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-[#DC2E27] rounded-full" />
-              </div>
-              {/* A2.4 — Settings only for HOD+ */}
-              {can(userRole, "manage:department") && (
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">settings</span>
-              )}
-              <ProfileDropdown name={userName} email={user?.email ?? ""} role={userRole} />
-            </div>
-          </header>
+          <TopNavView
+            authed={!!user}
+            name={userName}
+            email={user?.email ?? ""}
+            role={userRole}
+          />
 
           {tracksContent}
         </main>
@@ -1294,12 +1236,18 @@ function DashboardContent() {
           </div>
           <nav className="flex-1 space-y-2">
             {[
-              { href: "/dashboard",                      icon: "dashboard",   label: "Overview",         active: false },
-              { href: "/dashboard/guides",               icon: "explore",     label: "Guide Track",      active: false },
-              { href: "/dashboard/tracks",               icon: "trophy",      label: "Tracks",           active: false },
-              ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules",        icon: "school",      label: "Training Modules", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD")   ? [{ href: "/dashboard?action=applications",   icon: "person_add",  label: "Applications",     active: false }] : []),
-              ...(hasMinRole(userRole, "HOD")   ? [{ href: "/dashboard?action=module-history", icon: "history",     label: "Module History",   active: true  }] : []),
+              { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: false },
+              { href: "/dashboard/training",  icon: "forest",      label: "Ranger Track", active: false },
+              { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
+              { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
+              // Training Modules for HOD+
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: true }] : []),
+              // A2.4 — Analytics only for HOD+
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: false }] : []),
+              // HoD-only tools
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
             ].map(({ href, icon, label, active }) => (
               <Link key={label} href={href}
                 className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"}`}>
@@ -1324,26 +1272,13 @@ function DashboardContent() {
           </div>
         </aside>
         <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          <header className="bg-emerald-950/90 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-12 py-4 shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-            <div className="flex items-center gap-12">
-              <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
-              <nav className="hidden md:flex gap-8 items-center text-sm">
-                <Link href="/training"      className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Training</Link>
-                <Link href="/announcements" className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Programmes</Link>
-                <span className="text-white border-b-2 border-[#DC2E27] pb-1 tracking-tight cursor-default">Dashboard</span>
-              </nav>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">notifications</span>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-[#DC2E27] rounded-full" />
-              </div>
-              {can(userRole, "manage:department") && (
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">settings</span>
-              )}
-              <ProfileDropdown name={userName} email={user?.email ?? ""} role={userRole} />
-            </div>
-          </header>
+          <TopNavView
+            authed={!!user}
+            name={userName}
+            email={user?.email ?? ""}
+            role={userRole}
+          />
+
           {historyContent}
         </main>
       </div>
@@ -1540,7 +1475,10 @@ function DashboardContent() {
               { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
               ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: false }] : []),
               ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: true }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=module-history", icon: "history", label: "Module History", active: false }] : []),
+              // HoD-only tools
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
+              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
             ].map(({ href, icon, label, active }) => (
               <Link
                 key={label}
@@ -1572,26 +1510,12 @@ function DashboardContent() {
         </aside>
 
         <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          <header className="bg-emerald-950/90 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-12 py-4 shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-            <div className="flex items-center gap-12">
-              <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
-              <nav className="hidden md:flex gap-8 items-center text-sm">
-                <Link href="/training"      className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Training</Link>
-                <Link href="/announcements" className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Programmes</Link>
-                <span className="text-white border-b-2 border-[#DC2E27] pb-1 tracking-tight cursor-default">Dashboard</span>
-              </nav>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="relative">
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">notifications</span>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-[#DC2E27] rounded-full" />
-              </div>
-              {can(userRole, "manage:department") && (
-                <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">settings</span>
-              )}
-              <ProfileDropdown name={userName} email={user?.email ?? ""} role={userRole} />
-            </div>
-          </header>
+          <TopNavView
+            authed={!!user}
+            name={userName}
+            email={user?.email ?? ""}
+            role={userRole}
+          />
 
           {applicationsContent}
         </main>
@@ -1624,7 +1548,10 @@ function DashboardContent() {
             { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
             ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: action === 'modules' || action === 'edit' || action === 'new' }] : []),
             ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: action === 'applications' }] : []),
-            ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=module-history", icon: "history", label: "Module History", active: action === 'module-history' }] : []),
+            // HoD-only tools
+            ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
+            ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
+            ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
           ].map(({ href, icon, label, active }) => (
             <Link
               key={label}
@@ -1657,28 +1584,12 @@ function DashboardContent() {
 
       {/* ── Main content ── */}
       <main className="ml-64 flex-1 flex flex-col min-h-screen">
-        {/* Top bar */}
-        <header className="bg-emerald-950/90 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center w-full px-12 py-4 shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-          <div className="flex items-center gap-12">
-            <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
-            <nav className="hidden md:flex gap-8 items-center text-sm">
-              <Link href="/training"      className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Training</Link>
-              <Link href="/announcements" className="text-emerald-100/70 hover:text-white transition-colors tracking-tight">Programmes</Link>
-              <span className="text-white border-b-2 border-[#DC2E27] pb-1 tracking-tight cursor-default">Dashboard</span>
-            </nav>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="relative">
-              <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">notifications</span>
-              <span className="absolute top-2 right-2 w-2 h-2 bg-[#DC2E27] rounded-full" />
-            </div>
-            {/* A2.4 — Settings only for HOD+ */}
-            {can(userRole, "manage:department") && (
-              <span className="material-symbols-outlined text-white hover:bg-white/10 p-2 rounded-full cursor-pointer transition-all">settings</span>
-            )}
-            <ProfileDropdown name={userName} email={user?.email ?? ""} role={userRole} />
-          </div>
-        </header>
+        <TopNavView
+          authed={!!user}
+          name={userName}
+          email={user?.email ?? ""}
+          role={userRole}
+        />
 
         <section className="p-8 space-y-8">
           {/* Stats grid */}

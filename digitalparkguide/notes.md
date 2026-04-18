@@ -1,0 +1,1 @@
+add more pictures so that model identifies what is and what is not for AI model

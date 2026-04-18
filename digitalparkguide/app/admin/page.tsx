@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import Link from "next/link"; // Added for navigation
 
 const FEED_ITEMS = [
   {
@@ -57,31 +56,6 @@ export default async function AdminDashboardPage() {
 
   return (
     <>
-      {/* Top bar updated with Quiz Builder Button */}
-      <header className="bg-emerald-950/95 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center px-10 py-4 shadow-lg">
-        <div className="flex items-center gap-8">
-          <div className="text-xl font-black tracking-tighter text-white uppercase italic">Digital Sentinel</div>
-          
-          {/* NEW: Quiz Builder Access Button */}
-          <Link 
-            href="/admin/quiz-builder" 
-            className="flex items-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-4 py-1.5 rounded-full transition-all group"
-          >
-            <span className="material-symbols-outlined text-emerald-400 text-sm group-hover:rotate-12 transition-transform">edit_note</span>
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Training Builder</span>
-          </Link>
-        </div>
-
-        <div className="flex flex-col items-end">
-          <div className="text-[0.625rem] font-mono text-emerald-400/70 uppercase tracking-widest">
-            Coord: 1.5533° N, 110.3592° E
-          </div>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[8px] font-bold text-white/40 uppercase tracking-[0.2em]">Sentinel Active</span>
-          </div>
-        </div>
-      </header>
 
       <section className="p-8 space-y-8">
         {/* Stats */}

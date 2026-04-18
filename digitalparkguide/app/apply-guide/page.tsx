@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { useToast } from "@/components/ui/Toast";
+import TopNavClient from "@/components/TopNavClient";
 
 const SPECIAL_CHAR_RE = /[<>{}[\]|\\^~#$%]/;
 function hasSpecialChars(v: string) { return SPECIAL_CHAR_RE.test(v); }
@@ -414,23 +415,7 @@ function Field({ label, required, hint, children }: {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f5f5f0]">
-      {/* Top bar */}
-      <div className="bg-[#012d1d] text-white text-[11px] py-1.5 px-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <span className="opacity-60">Portal Rasmi | Sarawak Forestry Corporation</span>
-        </div>
-      </div>
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-[#012d1d] flex items-center justify-center text-sm">🌿</div>
-            <span className="text-sm font-extrabold text-[#012d1d] tracking-tight">Digital Sentinel</span>
-          </Link>
-          <Link href="/apply-guide/status" className="text-xs font-semibold text-gray-500 hover:text-[#012d1d] transition-colors">
-            My Application →
-          </Link>
-        </div>
-      </header>
+      <TopNavClient />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
         {/* Page title */}

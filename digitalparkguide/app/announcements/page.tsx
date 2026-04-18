@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import TopNav from "@/components/TopNav";
 
 // A3.3 — SEO / Open Graph
 export const metadata: Metadata = {
@@ -13,12 +14,35 @@ export const metadata: Metadata = {
   },
 };
 
+type Block =
+  | { type: "h1" | "h2" | "h3" | "paragraph"; text: string }
+  | { type: "attachment"; name: string; url: string; path: string; size: number; mime: string };
+
 interface Announcement {
   id: string;
   title: string;
   content: string;
   category: string;
-  published_at: string;
+  published_at: string | null;
+  created_at: string;
+  blocks: Block[] | null;
+}
+
+function stripAttachmentMarkers(text: string): string {
+  return text
+    .replace(/\[[^\[\]\n]+\.[a-zA-Z0-9]{1,5}\]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function firstImage(blocks: Block[] | null): { url: string; name: string } | null {
+  if (!Array.isArray(blocks)) return null;
+  for (const b of blocks) {
+    if (b.type === "attachment" && b.mime?.startsWith("image/")) {
+      return { url: b.url, name: b.name };
+    }
+  }
+  return null;
 }
 
 export default async function AnnouncementsPage() {
@@ -26,42 +50,28 @@ export default async function AnnouncementsPage() {
 
   const { data, error } = await supabase
     .from("announcements")
-    .select("id, title, content, category, published_at")
+    .select("id, title, content, category, published_at, created_at, blocks")
     .eq("published", true)
-    .order("published_at", { ascending: false })
-    .limit(20);
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(50);
 
-  const announcements = data as Announcement[] | null;
+  const announcements = (data as Announcement[] | null) ?? [];
 
-  // Split into featured (first) + rest
-  const featured   = announcements?.[0]  ?? null;
-  const sidebarItem= announcements?.[1]  ?? null;
-  const gridItems  = announcements?.slice(2, 4) ?? [];
+  // Split into featured mosaic + rest
+  const featured    = announcements[0] ?? null;
+  const sidebarItem = announcements[1] ?? null;
+  const gridItems   = announcements.slice(2, 4);
+  const restItems   = announcements.slice(4);
+
+  function formatDate(iso: string | null) {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+  }
 
   return (
     <div className="bg-surface font-body text-on-surface antialiased min-h-screen">
-      {/* ── Top Nav ── */}
-      <nav className="sticky top-0 z-50 px-6 py-4 flex justify-between items-center w-full shadow-[0_20px_40px_rgba(25,28,29,0.06)]"
-        style={{ background: "rgba(2,40,26,0.9)", backdropFilter: "blur(24px)" }}>
-        <div className="flex items-center gap-8">
-          <span className="text-xl font-bold tracking-tighter text-white">Digital Sentinel</span>
-          <div className="hidden md:flex gap-6 items-center">
-            <Link href="/training" className="tracking-tight text-emerald-100/70 hover:text-white transition-colors text-sm">Training</Link>
-            <Link href="/training" className="tracking-tight text-emerald-100/70 hover:text-white transition-colors text-sm">Programmes</Link>
-            <Link href="/dashboard" className="tracking-tight text-emerald-100/70 hover:text-white transition-colors text-sm">Dashboard</Link>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="relative hidden sm:block">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/50 text-sm">search</span>
-            <input className="bg-white/10 border-none text-white text-sm rounded-full pl-10 pr-4 py-2 w-64 focus:ring-2 focus:ring-white/20 transition-all placeholder:text-white/40 outline-none" placeholder="Search system…" type="text" />
-          </div>
-          <Link href="/login" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-full transition-all text-sm font-medium active:scale-95">
-            <span className="material-symbols-outlined text-[18px]">login</span>
-            Sign In
-          </Link>
-        </div>
-      </nav>
+      <TopNav active="announcements" />
 
       <main className="min-h-screen">
         {/* ── Hero ── */}
@@ -143,66 +153,125 @@ export default async function AnnouncementsPage() {
           {featured && (
             <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
               {/* Featured */}
-              <article className="md:col-span-8 group cursor-pointer">
-                <div className="relative h-[500px] rounded-xl overflow-hidden mb-6">
-                  <div className="w-full h-full bg-primary-container" />
+              <Link href={`/announcements/${featured.id}`} className="md:col-span-8 group block">
+                <article className="relative h-[500px] rounded-xl overflow-hidden mb-6 transition-transform hover:-translate-y-1">
+                  {(() => {
+                    const img = firstImage(featured.blocks);
+                    return img ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={img.url} alt={img.name} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-primary-container" />
+                    );
+                  })()}
                   <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/20 to-transparent" />
                   <div className="absolute bottom-0 left-0 p-8">
-                    <span className="bg-error text-white text-[10px] font-bold tracking-[0.2em] uppercase px-3 py-1 rounded-sm mb-4 inline-block">
-                      {featured.category}
-                    </span>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="bg-error text-white text-[10px] font-bold tracking-[0.2em] uppercase px-3 py-1 rounded-sm inline-block">
+                        {featured.category}
+                      </span>
+                      {featured.published_at && (
+                        <span className="text-[11px] font-medium text-emerald-50/80 uppercase tracking-widest">
+                          {formatDate(featured.published_at)}
+                        </span>
+                      )}
+                    </div>
                     <h2 className="text-3xl md:text-5xl font-headline font-bold text-white tracking-tight mb-4">
                       {featured.title}
                     </h2>
-                    <p className="text-emerald-50/70 text-lg max-w-2xl line-clamp-2">{featured.content}</p>
+                    <p className="text-emerald-50/70 text-lg max-w-2xl line-clamp-2">{stripAttachmentMarkers(featured.content)}</p>
                   </div>
-                </div>
-              </article>
+                </article>
+              </Link>
 
               {/* Sidebar */}
               {sidebarItem && (
-                <article className="md:col-span-4 bg-surface-container-lowest p-8 rounded-xl flex flex-col justify-between border-l-4 border-error">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-widest text-error mb-4">{sidebarItem.category}</p>
-                    <h3 className="text-2xl font-bold tracking-tight mb-4 text-primary leading-tight">{sidebarItem.title}</h3>
-                    <p className="text-secondary mb-6 leading-relaxed line-clamp-4">{sidebarItem.content}</p>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-surface-container-high pt-6">
-                    <span className="text-xs text-on-surface-variant font-medium">
-                      {new Date(sidebarItem.published_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}
-                    </span>
-                    <a href="#" className="text-primary font-bold text-sm flex items-center gap-1 hover:gap-3 transition-all">
-                      Read <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                    </a>
-                  </div>
-                </article>
+                <Link href={`/announcements/${sidebarItem.id}`} className="md:col-span-4 block">
+                  <article className="bg-surface-container-lowest rounded-xl overflow-hidden flex flex-col border-l-4 border-error h-full transition-shadow hover:shadow-md">
+                    {(() => {
+                      const img = firstImage(sidebarItem.blocks);
+                      return img ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={img.url} alt={img.name} className="w-full h-40 object-cover" />
+                      ) : null;
+                    })()}
+                    <div className="p-8 flex flex-col justify-between flex-1">
+                      <div>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-error mb-4">{sidebarItem.category}</p>
+                        <h3 className="text-2xl font-bold tracking-tight mb-4 text-primary leading-tight">{sidebarItem.title}</h3>
+                        <p className="text-secondary mb-6 leading-relaxed line-clamp-4">{stripAttachmentMarkers(sidebarItem.content)}</p>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-surface-container-high pt-6">
+                        <span className="text-xs text-on-surface-variant font-medium">
+                          {formatDate(sidebarItem.published_at)}
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                </Link>
               )}
 
               {/* Grid row */}
-              {gridItems.map((item) => (
-                <article key={item.id} className="md:col-span-4 bg-surface-container-low rounded-xl overflow-hidden group">
-                  <div className="h-48 bg-primary-container/20" />
-                  <div className="p-6">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-secondary-fixed-dim bg-secondary-container px-2 py-0.5 rounded">
-                      {item.category}
-                    </span>
-                    <h3 className="text-xl font-bold text-primary mt-3 mb-2 leading-tight">{item.title}</h3>
-                    <p className="text-on-surface-variant text-sm line-clamp-3">{item.content}</p>
-                  </div>
-                </article>
-              ))}
+              {gridItems.map((item) => {
+                const img = firstImage(item.blocks);
+                return (
+                  <Link key={item.id} href={`/announcements/${item.id}`} className="md:col-span-4 block">
+                    <article className="bg-surface-container-low rounded-xl overflow-hidden group h-full transition-shadow hover:shadow-md">
+                      {img ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={img.url} alt={img.name} className="h-48 w-full object-cover" />
+                      ) : (
+                        <div className="h-48 bg-primary-container/20" />
+                      )}
+                      <div className="p-6">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-secondary-fixed-dim bg-secondary-container px-2 py-0.5 rounded">
+                            {item.category}
+                          </span>
+                          {item.published_at && (
+                            <span className="text-[10px] text-on-surface-variant font-medium uppercase tracking-widest">
+                              {formatDate(item.published_at)}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-xl font-bold text-primary mt-3 mb-2 leading-tight">{item.title}</h3>
+                        <p className="text-on-surface-variant text-sm line-clamp-3">{stripAttachmentMarkers(item.content)}</p>
+                      </div>
+                    </article>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
 
-              {/* CTA tile */}
-              <article className="md:col-span-4 bg-primary text-white rounded-xl p-8 relative flex flex-col justify-center">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="material-symbols-outlined text-[100px]">shield</span>
-                </div>
-                <h3 className="text-2xl font-bold mb-4 relative z-10">Institutional Links</h3>
-                <p className="text-emerald-100/60 text-sm mb-6 relative z-10">Access restricted government documentation and multi-agency cooperation frameworks.</p>
-                <button className="bg-white text-primary px-6 py-2 rounded-full font-bold text-sm w-fit active:scale-95 transition-transform relative z-10">
-                  Explore Archive
-                </button>
-              </article>
+          {/* Full archive list */}
+          {restItems.length > 0 && (
+            <div className="mt-16">
+              <div className="flex items-center gap-3 mb-6">
+                <h2 className="text-xs font-black uppercase tracking-[0.25em] text-primary">Archive</h2>
+                <div className="h-px flex-1 bg-outline-variant/30" />
+                <span className="text-[11px] text-on-surface-variant font-medium">{restItems.length} more</span>
+              </div>
+              <ul className="divide-y divide-outline-variant/10 bg-surface-container-lowest rounded-xl border border-outline-variant/10 overflow-hidden">
+                {restItems.map((item) => (
+                  <li key={item.id}>
+                    <Link href={`/announcements/${item.id}`} className="flex flex-col sm:flex-row sm:items-center gap-3 px-6 py-4 hover:bg-surface-container-low transition-colors">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-secondary-fixed-dim bg-secondary-container px-2 py-0.5 rounded shrink-0">
+                        {item.category}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-on-surface truncate">{item.title}</p>
+                        <p className="text-sm text-on-surface-variant line-clamp-1">{stripAttachmentMarkers(item.content)}</p>
+                      </div>
+                      {item.published_at && (
+                        <span className="text-[11px] text-on-surface-variant font-medium uppercase tracking-widest shrink-0">
+                          {formatDate(item.published_at)}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </section>

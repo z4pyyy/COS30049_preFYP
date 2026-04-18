@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import AdminSidebar from "@/components/AdminSidebar";
+import TopNav from "@/components/TopNav";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -20,13 +21,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="bg-surface text-on-surface flex min-h-screen">
-      <AdminSidebar fullName={fullName} initials={initials} />
+    <div className="bg-surface text-on-surface min-h-screen flex flex-col">
+      <TopNav />
+      <div className="flex flex-1">
+        <AdminSidebar fullName={fullName} initials={initials} />
 
-      {/* Page content */}
-      <main className="flex-1 flex flex-col min-h-screen lg:ml-64 pt-14 lg:pt-0">
-        {children}
-      </main>
+        {/* Page content */}
+        <main className="flex-1 flex flex-col min-h-screen lg:ml-64 pt-14 lg:pt-0">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

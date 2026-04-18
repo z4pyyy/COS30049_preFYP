@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import TopNavClient from "@/components/TopNavClient";
 
 type Application = {
   id: string;
@@ -195,18 +196,7 @@ export default function ApplicationStatusPage() {
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f5f5f0]">
-      <div className="bg-[#012d1d] text-white text-[11px] py-1.5 px-4">
-        <span className="opacity-60">Portal Rasmi | Sarawak Forestry Corporation</span>
-      </div>
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-[#012d1d] flex items-center justify-center text-sm">🌿</div>
-            <span className="text-sm font-extrabold text-[#012d1d] tracking-tight">Digital Sentinel</span>
-          </Link>
-          <span className="text-xs text-gray-500 font-semibold">Application Status</span>
-        </div>
-      </header>
+      <TopNavClient />
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-10">
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8">
           {children}

@@ -247,9 +247,21 @@ export default function RbacPage() {
 
                           {/* Page info */}
                           <div className="flex-1 min-w-0">
-                            <p className={`font-semibold text-sm ${page.is_disabled ? "text-on-surface/50 line-through" : "text-on-surface"}`}>
-                              {page.label}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className={`font-semibold text-sm ${page.is_disabled ? "text-on-surface/50 line-through" : "text-on-surface"}`}>
+                                {page.label}
+                              </p>
+                              <a
+                                href={page.route}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Open ${page.route} in a new tab`}
+                                className="inline-flex items-center gap-1 text-[0.625rem] font-bold uppercase tracking-widest text-primary hover:text-primary/80 hover:underline transition-colors"
+                              >
+                                <span className="material-symbols-outlined text-sm">open_in_new</span>
+                                Preview
+                              </a>
+                            </div>
                             <code className="text-[0.6875rem] font-mono text-on-surface-variant">
                               {page.route}/*
                             </code>

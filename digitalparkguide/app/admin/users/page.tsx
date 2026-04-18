@@ -26,6 +26,8 @@ export default function UsersPage() {
   const [profiles,  setProfiles]  = useState<Profile[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState<string | null>(null);
+  const [deleting,  setDeleting]  = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Profile | null>(null);
   const [search,    setSearch]    = useState("");
   const [filter,    setFilter]    = useState<AppRole | "ALL">("ALL");
   const [toast,     setToast]     = useState<{ msg: string; ok: boolean } | null>(null);
@@ -43,6 +45,23 @@ export default function UsersPage() {
     }
     load();
   }, []);
+
+  async function handleDelete(profile: Profile) {
+    setDeleting(profile.id);
+    setConfirmDelete(null);
+    try {
+      const res = await fetch(`/api/admin/users/${profile.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(json.error || "Failed to delete user.", false);
+        return;
+      }
+      setProfiles((prev) => prev.filter((p) => p.id !== profile.id));
+      showToast(`Deleted ${profile.full_name || "user"}.`, true);
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   async function handleRoleChange(userId: string, newRole: AppRole) {
     setSaving(userId);
@@ -86,6 +105,44 @@ export default function UsersPage() {
       </header>
 
       <section className="p-8 space-y-6">
+        {/* Delete confirmation */}
+        {confirmDelete && (
+          <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setConfirmDelete(null)}>
+            <div
+              className="bg-surface-container-lowest rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-red-700">warning</span>
+                </div>
+                <div>
+                  <h3 className="font-black text-on-surface">Delete user?</h3>
+                  <p className="text-sm text-on-surface-variant mt-1">
+                    This permanently removes <span className="font-bold text-on-surface">{confirmDelete.full_name || "this user"}</span> and their sign-in credentials. This cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(null)}
+                  className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(confirmDelete)}
+                  className="px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-widest bg-red-700 text-white hover:bg-red-800 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Toast */}
         {toast && (
           <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-sm font-medium text-white transition-all
@@ -148,6 +205,7 @@ export default function UsersPage() {
                   <th className="text-left px-6 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-bold">Current Role</th>
                   <th className="text-left px-6 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-bold">Joined</th>
                   <th className="text-left px-6 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-bold">Assign Role</th>
+                  <th className="text-right px-6 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-bold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -197,6 +255,26 @@ export default function UsersPage() {
                             <span className="material-symbols-outlined animate-spin text-primary text-base">progress_activity</span>
                           )}
                         </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {profile.role === "SUPERADMIN" ? (
+                        <span className="text-[0.6875rem] text-on-surface-variant italic">—</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(profile)}
+                          disabled={deleting === profile.id}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest text-red-700 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                          aria-label={`Delete ${profile.full_name || "user"}`}
+                        >
+                          {deleting === profile.id ? (
+                            <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
+                          ) : (
+                            <span className="material-symbols-outlined text-base">delete</span>
+                          )}
+                          Delete
+                        </button>
                       )}
                     </td>
                   </tr>

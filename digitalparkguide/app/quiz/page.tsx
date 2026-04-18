@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import TopNavClient from '@/components/TopNavClient';
 
 export default function ParkQuizInterface() {
   const supabase = createClient();
@@ -106,6 +107,7 @@ export default function ParkQuizInterface() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-emerald-500/30">
+      <TopNavClient active="training" />
       {/* HUD Header */}
       <nav className="border-b border-emerald-500/20 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10 p-4">
         <div className="max-w-4xl mx-auto flex justify-between items-center">

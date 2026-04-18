@@ -1,6 +1,6 @@
 import { GuardianPortalSidebar } from '@/components/GuardianPortalSidebar'
 
-export default function HodLayout({
+export default function QuizResultLayout({
   children,
 }: {
   children: React.ReactNode

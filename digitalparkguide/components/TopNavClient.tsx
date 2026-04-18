@@ -9,7 +9,7 @@ import type { AppRole } from "@/types/roles";
 
 type NavKey = "home" | "training" | "announcements" | "biodiversity" | "about";
 
-export default function TopNavClient({ active }: { active?: NavKey }) {
+export default function TopNavClient({ active, context }: { active?: NavKey; context?: string }) {
   const [authed, setAuthed] = useState(false);
   const [name, setName]     = useState("");
   const [email, setEmail]   = useState("");
@@ -29,5 +29,5 @@ export default function TopNavClient({ active }: { active?: NavKey }) {
     })();
   }, []);
 
-  return <TopNavView active={active} authed={authed} name={name} email={email} role={role} />;
+  return <TopNavView active={active} authed={authed} name={name} email={email} role={role} context={context} />;
 }

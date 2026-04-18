@@ -37,8 +37,8 @@ export default function AdminSidebar({
 
   return (
     <>
-      {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 h-14 bg-slate-50 border-b border-outline-variant/20 flex items-center px-4">
+      {/* Mobile menu trigger — slides below the unified TopNav */}
+      <div className="lg:hidden sticky top-0 z-30 h-14 bg-slate-50 border-b border-outline-variant/20 flex items-center px-4">
         <button
           type="button"
           aria-label="Open navigation"
@@ -48,10 +48,7 @@ export default function AdminSidebar({
         >
           <span className="material-symbols-outlined">menu</span>
         </button>
-        <div className="ml-2">
-          <h1 className="font-black text-emerald-900 text-sm tracking-tighter leading-none">Guardian Portal</h1>
-          <p className="text-[0.5625rem] uppercase tracking-widest text-slate-500 font-medium mt-0.5">Superadmin</p>
-        </div>
+        <p className="ml-3 text-[0.6875rem] uppercase tracking-widest text-slate-500 font-bold">Superadmin Menu</p>
       </div>
 
       {/* Backdrop (mobile only) */}
@@ -63,22 +60,18 @@ export default function AdminSidebar({
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — sits below the TopNav on desktop */}
       <aside
-        className={`fixed left-0 top-0 z-50 h-screen w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 lg:top-[6.25rem] z-50 lg:z-30 h-screen lg:h-[calc(100vh-6.25rem)] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="mb-10 px-4 flex items-start justify-between gap-2">
-          <div>
-            <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-            <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Superadmin Console</p>
-          </div>
+        <div className="mb-6 px-4 flex items-start justify-end lg:hidden">
           <button
             type="button"
             aria-label="Close navigation"
             onClick={() => setOpen(false)}
-            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 text-slate-600 -mr-2"
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 text-slate-600 -mr-2"
           >
             <span className="material-symbols-outlined text-lg">close</span>
           </button>

@@ -35,7 +35,7 @@ async function getAuthSnapshot() {
   }
 }
 
-export default async function TopNav({ active }: { active?: NavKey }) {
+export default async function TopNav({ active, context }: { active?: NavKey; context?: string }) {
   const { user, role } = await getAuthSnapshot();
   return (
     <TopNavView
@@ -44,6 +44,7 @@ export default async function TopNav({ active }: { active?: NavKey }) {
       name={user?.user_metadata?.full_name ?? ""}
       email={user?.email ?? ""}
       role={role}
+      context={context}
     />
   );
 }

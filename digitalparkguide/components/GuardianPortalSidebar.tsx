@@ -5,14 +5,21 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { hasMinRole, type AppRole } from '@/types/roles'
+import BackToSiteButton from '@/components/BackToSiteButton'
 
-export function GuardianPortalSidebar() {
+interface Props {
+  fullName?: string
+  initials?: string
+}
+
+export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const action = searchParams.get('action')
   const router = useRouter()
   const supabase = createClient()
   const [userRole, setUserRole] = useState<AppRole>('GUIDE')
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -30,19 +37,33 @@ export function GuardianPortalSidebar() {
     return () => { cancelled = true }
   }, [supabase])
 
+  useEffect(() => {
+    setOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
   }
 
   const isDashboardRoot = pathname === '/dashboard' && !action
+  const isHod = hasMinRole(userRole, 'HOD')
+  const roleLabel = isHod ? 'HoD' : userRole === 'SENIOR_GUIDE' ? 'Senior Guide' : 'Guide'
 
   const items = [
     { href: '/dashboard', icon: 'dashboard', label: 'Overview', active: isDashboardRoot },
-    { href: '/dashboard/training', icon: 'forest', label: 'Ranger Track', active: pathname.startsWith('/dashboard/training') },
     { href: '/dashboard/guides', icon: 'explore', label: 'Guide Track', active: pathname.startsWith('/dashboard/guides') },
     { href: '/dashboard/tracks', icon: 'trophy', label: 'Tracks', active: pathname.startsWith('/dashboard/tracks') },
-    ...(hasMinRole(userRole, 'HOD') ? [
+    ...(isHod ? [
       { href: '/dashboard?action=modules', icon: 'school', label: 'Training Modules', active: action === 'modules' || action === 'edit' || action === 'new' },
       { href: '/dashboard?action=applications', icon: 'person_add', label: 'Applications', active: action === 'applications' },
       { href: '/dashboard/hod/announcements', icon: 'campaign', label: 'Announcements', active: pathname.startsWith('/dashboard/hod/announcements') },
@@ -52,41 +73,83 @@ export function GuardianPortalSidebar() {
   ]
 
   return (
-    <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
-      <div className="mb-10 px-4">
-        <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-        <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
+    <>
+      {/* Mobile menu trigger */}
+      <div className="lg:hidden sticky top-0 z-30 h-14 bg-slate-50 border-b border-outline-variant/20 flex items-center px-4">
+        <button
+          type="button"
+          aria-label="Open navigation"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+          className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-emerald-50 text-slate-700"
+        >
+          <span className="material-symbols-outlined">menu</span>
+        </button>
+        <p className="ml-3 text-[0.6875rem] uppercase tracking-widest text-slate-500 font-bold">
+          {isHod ? 'HoD Menu' : 'Guide Menu'}
+        </p>
       </div>
 
-      <nav className="flex-1 space-y-2">
-        {items.map(({ href, icon, label, active }) => (
-          <Link
-            key={label}
-            href={href}
-            className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
-              active ? 'bg-emerald-100 text-emerald-900 translate-x-1' : 'text-slate-500 hover:bg-slate-200'
-            }`}
-          >
-            <span className="material-symbols-outlined">{icon}</span>
-            {label}
-          </Link>
-        ))}
-      </nav>
+      {/* Backdrop (mobile only) */}
+      {open && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
-      <div className="mt-auto space-y-2 pt-6">
-        <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
-          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
-          Live Incident
-        </button>
-        <div className="pt-4 space-y-1">
-          <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-            <span className="material-symbols-outlined text-sm">help</span> Support
-          </a>
-          <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-            <span className="material-symbols-outlined text-sm">logout</span> Sign Out
+      <aside
+        className={`fixed left-0 top-0 lg:top-[6.25rem] z-50 lg:z-30 h-screen lg:h-[calc(100vh-6.25rem)] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="mb-2 px-4 flex items-start justify-end lg:hidden">
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => setOpen(false)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 text-slate-600 -mr-2"
+          >
+            <span className="material-symbols-outlined text-lg">close</span>
           </button>
         </div>
-      </div>
-    </aside>
+
+        <nav className="flex-1 space-y-1 pt-2">
+          {items.map(({ href, icon, label, active }) => (
+            <Link
+              key={label}
+              href={href}
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
+                active ? 'bg-emerald-100 text-emerald-900 translate-x-1' : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-900'
+              }`}
+            >
+              <span className={`material-symbols-outlined text-xl ${active ? '' : 'group-hover:text-emerald-700'}`}>{icon}</span>
+              {label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="mt-auto pt-6 border-t border-outline-variant/20">
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-100 rounded-xl transition-all"
+          >
+            <span className="material-symbols-outlined text-base">logout</span>
+            <span className="font-medium text-[0.6875rem] uppercase tracking-widest">Sign Out</span>
+          </button>
+          <BackToSiteButton />
+          <div className="flex items-center gap-3 px-4 py-3 mt-2">
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-black">
+              {initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-on-surface truncate">{fullName || 'Guide'}</p>
+              <p className="text-[0.625rem] text-on-surface-variant uppercase tracking-widest">{roleLabel}</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </>
   )
 }

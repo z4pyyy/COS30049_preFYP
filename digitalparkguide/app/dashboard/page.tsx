@@ -3,13 +3,11 @@
 // A2.4 — Superadmin Dashboard with role-based UI guards
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { can, type AppRole, hasMinRole } from "@/types/roles";
 import type { User } from "@supabase/supabase-js";
 import { ModuleEditorForm, ModuleEditorState } from "@/components/ModuleEditorForm";
 import { ModuleHistoryPanel } from "@/components/ModuleHistoryPanel";
-import TopNavView from "@/components/TopNavView";
 
 // ── Mock feed data (replaced with Supabase queries in later sprints) ──
 const FEED_ITEMS = [
@@ -129,7 +127,6 @@ function DashboardContent() {
 
   const [user,    setUser]    = useState<User | null>(null);
   const [userRole, setUserRole] = useState<AppRole>("GUIDE");
-  const [userName, setUserName] = useState<string>("Guardian");
   const [loading, setLoading] = useState(true);
 
   // Training modules state
@@ -172,7 +169,6 @@ function DashboardContent() {
       }
 
       setUser(user);
-      setUserName(user.user_metadata?.full_name ?? user.email ?? "Guardian");
 
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -563,69 +559,7 @@ function DashboardContent() {
       </div>
     )
 
-    return (
-      <div className="bg-surface text-on-surface flex min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
-        {/* ── Sidebar ── */}
-        <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
-          <div className="mb-10 px-4">
-            <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-            <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
-          </div>
-
-          <nav className="flex-1 space-y-2">
-            {[
-              { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: false },
-              { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
-              { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
-              ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: true }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: false }] : []),
-              // HoD-only tools
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
-            ].map(({ href, icon, label, active }) => (
-              <Link
-                key={label}
-                href={href}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
-                  active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                <span className="material-symbols-outlined">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto space-y-2 pt-6">
-            <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
-              Live Incident
-            </button>
-            <div className="pt-4 space-y-1">
-              <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">help</span> Support
-              </a>
-              <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">logout</span> Sign Out
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        {/* ── Main content ── */}
-        <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          <TopNavView
-            authed={!!user}
-            name={userName}
-            email={user?.email ?? ""}
-            role={userRole}
-          />
-
-          {editContent}
-        </main>
-      </div>
-    )
+    return editContent
   }
 
   // Training Modules Create View
@@ -652,69 +586,7 @@ function DashboardContent() {
       </div>
     )
 
-    return (
-      <div className="bg-surface text-on-surface flex min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
-        {/* ── Sidebar ── */}
-        <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
-          <div className="mb-10 px-4">
-            <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-            <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
-          </div>
-
-          <nav className="flex-1 space-y-2">
-            {[
-              { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: false },
-              { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
-              { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
-              ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: true }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: false }] : []),
-              // HoD-only tools
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
-            ].map(({ href, icon, label, active }) => (
-              <Link
-                key={label}
-                href={href}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
-                  active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                <span className="material-symbols-outlined">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto space-y-2 pt-6">
-            <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
-              Live Incident
-            </button>
-            <div className="pt-4 space-y-1">
-              <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">help</span> Support
-              </a>
-              <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">logout</span> Sign Out
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        {/* ── Main content ── */}
-        <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          <TopNavView
-            authed={!!user}
-            name={userName}
-            email={user?.email ?? ""}
-            role={userRole}
-          />
-
-          {createContent}
-        </main>
-      </div>
-    )
+    return createContent
   }
 
   // Training Modules List View
@@ -877,66 +749,7 @@ function DashboardContent() {
       </div>
     )
 
-    return (
-      <div className="bg-surface text-on-surface flex min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
-        {/* ── Sidebar ── */}
-        <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
-          <div className="mb-10 px-4">
-            <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-            <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
-          </div>
-
-          <nav className="flex-1 space-y-2">
-            {[
-              { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: false },
-              { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
-              { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
-              ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: true }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=module-history", icon: "history", label: "Module History", active: false }] : []),
-            ].map(({ href, icon, label, active }) => (
-              <Link
-                key={label}
-                href={href}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
-                  active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                <span className="material-symbols-outlined">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto space-y-2 pt-6">
-            <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
-              Live Incident
-            </button>
-            <div className="pt-4 space-y-1">
-              <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">help</span> Support
-              </a>
-              <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">logout</span> Sign Out
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        {/* ── Main content ── */}
-        <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          <TopNavView
-            authed={!!user}
-            name={userName}
-            email={user?.email ?? ""}
-            role={userRole}
-          />
-
-          {modulesContent}
-        </main>
-      </div>
-    )
+    return modulesContent
   }
 
   // Park Badges (Training Tracks) CRUD View
@@ -1091,66 +904,7 @@ function DashboardContent() {
       </div>
     )
 
-    return (
-      <div className="bg-surface text-on-surface flex min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
-        {/* ── Sidebar ── */}
-        <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
-          <div className="mb-10 px-4">
-            <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-            <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
-          </div>
-
-          <nav className="flex-1 space-y-2">
-            {[
-              { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: false },
-              { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
-              { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: true },
-              ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=module-history", icon: "history", label: "Module History", active: false }] : []),
-            ].map(({ href, icon, label, active }) => (
-              <Link
-                key={label}
-                href={href}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
-                  active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                <span className="material-symbols-outlined">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto space-y-2 pt-6">
-            <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
-              Live Incident
-            </button>
-            <div className="pt-4 space-y-1">
-              <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">help</span> Support
-              </a>
-              <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">logout</span> Sign Out
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        {/* ── Main content ── */}
-        <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          <TopNavView
-            authed={!!user}
-            name={userName}
-            email={user?.email ?? ""}
-            role={userRole}
-          />
-
-          {tracksContent}
-        </main>
-      </div>
-    )
+    return tracksContent
   }
 
   // Module History View (B1.5)
@@ -1227,62 +981,7 @@ function DashboardContent() {
       </div>
     )
 
-    return (
-      <div className="bg-surface text-on-surface flex min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
-          <div className="mb-10 px-4">
-            <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-            <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
-          </div>
-          <nav className="flex-1 space-y-2">
-            {[
-              { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: false },
-              { href: "/dashboard/training",  icon: "forest",      label: "Ranger Track", active: false },
-              { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
-              { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
-              // Training Modules for HOD+
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: true }] : []),
-              // A2.4 — Analytics only for HOD+
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: false }] : []),
-              // HoD-only tools
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
-            ].map(({ href, icon, label, active }) => (
-              <Link key={label} href={href}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"}`}>
-                <span className="material-symbols-outlined">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          </nav>
-          <div className="mt-auto space-y-2 pt-6">
-            <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
-              Live Incident
-            </button>
-            <div className="pt-4 space-y-1">
-              <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">help</span> Support
-              </a>
-              <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">logout</span> Sign Out
-              </button>
-            </div>
-          </div>
-        </aside>
-        <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          <TopNavView
-            authed={!!user}
-            name={userName}
-            email={user?.email ?? ""}
-            role={userRole}
-          />
-
-          {historyContent}
-        </main>
-      </div>
-    )
+    return historyContent
   }
 
   // Applications View
@@ -1460,137 +1159,11 @@ function DashboardContent() {
       </div>
     );
 
-    return (
-      <div className="bg-surface text-on-surface flex min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
-        <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
-          <div className="mb-10 px-4">
-            <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-            <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
-          </div>
-
-          <nav className="flex-1 space-y-2">
-            {[
-              { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: false },
-              { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
-              { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
-              ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: true }] : []),
-              // HoD-only tools
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
-              ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
-            ].map(({ href, icon, label, active }) => (
-              <Link
-                key={label}
-                href={href}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
-                  active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                <span className="material-symbols-outlined">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto space-y-2 pt-6">
-            <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
-              Live Incident
-            </button>
-            <div className="pt-4 space-y-1">
-              <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">help</span> Support
-              </a>
-              <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-                <span className="material-symbols-outlined text-sm">logout</span> Sign Out
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <main className="ml-64 flex-1 flex flex-col min-h-screen">
-          <TopNavView
-            authed={!!user}
-            name={userName}
-            email={user?.email ?? ""}
-            role={userRole}
-          />
-
-          {applicationsContent}
-        </main>
-      </div>
-    )
-  }
-
-  // If the user's saved profile role exists, use it; otherwise fall back to auth metadata.
-  const roleToUse = userRole;
-  const profileName = userName;
-
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/login");
+    return applicationsContent
   }
 
   return (
-    <div className="bg-surface text-on-surface flex min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* ── Sidebar ── */}
-      <aside className="h-screen w-64 fixed left-0 top-0 z-40 bg-slate-50 flex flex-col p-4">
-        <div className="mb-10 px-4">
-          <h1 className="font-black text-emerald-900 text-xl tracking-tighter">Guardian Portal</h1>
-          <p className="text-[0.6875rem] uppercase tracking-widest text-slate-500 font-medium">Biodiversity Unit</p>
-        </div>
-
-        <nav className="flex-1 space-y-2">
-          {[
-            { href: "/dashboard",          icon: "dashboard",   label: "Overview",     active: action === 'overview'  },
-            { href: "/dashboard/guides",    icon: "explore",     label: "Guide Track",  active: false },
-            { href: "/dashboard/tracks", icon: "trophy",      label: "Tracks",       active: false },
-            ...(hasMinRole(userRole, "GUIDE") ? [{ href: "/dashboard?action=modules", icon: "school", label: "Training Modules", active: action === 'modules' || action === 'edit' || action === 'new' }] : []),
-            ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard?action=applications", icon: "person_add", label: "Applications", active: action === 'applications' }] : []),
-            // HoD-only tools
-            ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/hod/announcements", icon: "campaign", label: "Announcements", active: false }] : []),
-            ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-builder", icon: "edit_note", label: "Quiz Builder", active: false }] : []),
-            ...(hasMinRole(userRole, "HOD") ? [{ href: "/dashboard/quiz-result", icon: "analytics", label: "Quiz Results", active: false }] : []),
-          ].map(({ href, icon, label, active }) => (
-            <Link
-              key={label}
-              href={href}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
-                active ? "bg-emerald-100 text-emerald-900 translate-x-1" : "text-slate-500 hover:bg-slate-200"
-              }`}
-            >
-              <span className="material-symbols-outlined">{icon}</span>
-              {label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="mt-auto space-y-2 pt-6">
-          <button className="w-full bg-[#DC2E27] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-sm">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span>
-            Live Incident
-          </button>
-          <div className="pt-4 space-y-1">
-            <a href="#" className="flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-              <span className="material-symbols-outlined text-sm">help</span> Support
-            </a>
-            <button onClick={handleSignOut} className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-200 rounded-xl transition-all text-[0.6875rem] uppercase tracking-widest font-medium">
-              <span className="material-symbols-outlined text-sm">logout</span> Sign Out
-            </button>
-          </div>
-        </div>
-      </aside>
-
-      {/* ── Main content ── */}
-      <main className="ml-64 flex-1 flex flex-col min-h-screen">
-        <TopNavView
-          authed={!!user}
-          name={userName}
-          email={user?.email ?? ""}
-          role={userRole}
-        />
-
+    <>
         <section className="p-8 space-y-8">
           {/* Stats grid */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -1727,8 +1300,7 @@ function DashboardContent() {
           </div>
           <p className="text-xs font-light tracking-wide text-emerald-100 opacity-50">© 2024 Sarawak Forestry Corporation. All rights reserved.</p>
         </footer>
-      </main>
-    </div>
+    </>
   );
 }
 

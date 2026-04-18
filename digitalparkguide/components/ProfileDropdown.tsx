@@ -8,13 +8,9 @@ import { useToast } from "@/components/ui/Toast";
 interface Props {
   name: string;
   email: string;
-  role?: string | null;
 }
 
-export default function ProfileDropdown({ name, email, role }: Props) {
-  const isAdmin = role === "SUPERADMIN";
-  const isHod   = role === "HOD";
-  const dashboardHref = isAdmin ? "/admin" : "/dashboard";
+export default function ProfileDropdown({ name, email }: Props) {
   const [open,       setOpen]       = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const ref    = useRef<HTMLDivElement>(null);
@@ -70,15 +66,6 @@ export default function ProfileDropdown({ name, email, role }: Props) {
 
             {/* Actions */}
             <div className="py-1">
-              {(isAdmin || isHod) && (
-                <a
-                  href={dashboardHref}
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors active:bg-gray-100"
-                >
-                  <span className="material-symbols-outlined text-[18px] text-gray-400">dashboard</span>
-                  Dashboard
-                </a>
-              )}
               <a
                 href="/profile"
                 className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors active:bg-gray-100"

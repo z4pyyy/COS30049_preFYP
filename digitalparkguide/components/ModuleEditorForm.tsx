@@ -10,6 +10,7 @@ import { ModuleAssetsDisplay } from './ModuleAssetsDisplay'
 export interface ModuleEditorState {
   id?: string
   track_id: string
+  additional_track_ids: string[]
   title: string
   description: string
   content: string
@@ -39,6 +40,7 @@ export function ModuleEditorForm({
 }: ModuleEditorFormProps) {
   const [formData, setFormData] = useState<ModuleEditorState>({
     track_id: initialTrackId || '',
+    additional_track_ids: [],
     title: '',
     description: '',
     content: '',
@@ -70,6 +72,7 @@ export function ModuleEditorForm({
       setFormData({
         id: module.id,
         track_id: module.track_id,
+        additional_track_ids: module.additional_track_ids || [],
         title: module.title,
         description: module.description,
         content: module.content,
@@ -122,9 +125,6 @@ export function ModuleEditorForm({
     }
   }
 
-  const uniqueTpas = Array.from(
-    new Map(trainingTracks.map((t) => [t.tpa_name, t])).values()
-  )
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -208,14 +208,48 @@ export function ModuleEditorForm({
           <label className="block text-sm font-semibold text-[#1B3A24] mb-2">
             Totally Protected Area (TPA)
           </label>
-          <div className="px-4 py-2.5 border border-[#cbd5e1] rounded-lg bg-[#f8fafc] text-[#1B3A24]">
-            {selectedTpa || 'Select a track above'}
+          <div className="border border-[#cbd5e1] rounded-lg bg-[#f8fafc] overflow-hidden divide-y divide-[#e2e8f0]">
+            <div className="px-4 py-2.5 text-[#1B3A24]">
+              {selectedTpa || 'Select a track above'}
+            </div>
+            {formData.additional_track_ids.map((tid, i) => {
+              const t = trainingTracks.find(x => x.id === tid)
+              const tpaName = t ? t.tpa_name : tid
+              return (
+                <div key={tid} className="px-4 py-2 flex items-center justify-between">
+                  <span className="text-sm text-[#1B3A24]">{tpaName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, additional_track_ids: prev.additional_track_ids.filter((_, j) => j !== i) }))}
+                    className="text-xs text-red-400 hover:text-red-600 font-medium ml-3"
+                  >✕</button>
+                </div>
+              )
+            })}
           </div>
           <p className="text-xs text-[#64748b] mt-1">
             Automatically populated from selected track
           </p>
         </div>
       </div>
+
+      {/* Add Another TPA */}
+      {trainingTracks.filter(t => t.id !== formData.track_id && !formData.additional_track_ids.includes(t.id)).length > 0 && (
+        <div>
+          <label className="block text-sm font-semibold text-[#1B3A24] mb-2">Add Another TPA <span className="text-gray-400 font-normal">(optional)</span></label>
+          <select
+            value=""
+            onChange={e => { if (e.target.value) setFormData(prev => ({ ...prev, additional_track_ids: [...prev.additional_track_ids, e.target.value] })) }}
+            disabled={isLoading}
+            className="w-full px-4 py-2.5 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2D6A3F] bg-white text-[#1B3A24]"
+          >
+            <option value="">— Select an additional track —</option>
+            {trainingTracks.filter(t => t.id !== formData.track_id && !formData.additional_track_ids.includes(t.id)).map(t => (
+              <option key={t.id} value={t.id}>{t.tpa_name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Title & Description */}
       <div className="space-y-4">
@@ -358,13 +392,6 @@ export function ModuleEditorForm({
         </div>
       )}
 
-      {!moduleId && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700">
-            💡 Save the module first to upload media files. You can edit media in the next step.
-          </p>
-        </div>
-      )}
 
       {/* Form Actions */}
       <div className="flex items-center justify-between gap-4 pt-6 border-t border-[#e2e8f0]">

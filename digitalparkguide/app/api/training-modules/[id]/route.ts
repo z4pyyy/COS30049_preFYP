@@ -43,6 +43,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       .select(`
         id,
         track_id,
+        additional_track_ids,
         title,
         description,
         content,

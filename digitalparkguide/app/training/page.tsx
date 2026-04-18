@@ -30,7 +30,6 @@ interface TrainingTrack {
 const TRACK_BADGE: Record<string, { bg: string; text: string; icon: string }> = {
   GUIDE:        { bg: "bg-primary-fixed",   text: "text-on-primary-fixed",   icon: "hiking"         },
   SENIOR_GUIDE: { bg: "bg-secondary-container", text: "text-on-secondary-container", icon: "military_tech" },
-  RANGER:       { bg: "bg-tertiary-fixed",  text: "text-on-tertiary-fixed",  icon: "shield_person"  },
 };
 
 export default async function TrainingPage() {
@@ -39,6 +38,7 @@ export default async function TrainingPage() {
   const { data: tracks, error } = await supabase
     .from("training_tracks")
     .select("id, title, track_type, tpa_name, overview, duration_weeks, eligibility, is_open")
+    .eq("is_archived", false)
     .order("track_type")
     .order("tpa_name");
 
@@ -82,7 +82,7 @@ export default async function TrainingPage() {
             <h1 className="text-on-surface text-3xl font-black tracking-tight">Training Programmes</h1>
           </div>
           <p className="text-secondary font-medium max-w-xl">
-            Explore available Guide and Ranger training tracks across Totally Protected Areas.
+            Explore available Guide training tracks across Totally Protected Areas.
             Sign in to enrol or track your progress.
           </p>
 

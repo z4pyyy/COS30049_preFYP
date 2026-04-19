@@ -5,7 +5,6 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { can, type AppRole, hasMinRole } from "@/types/roles";
-import type { User } from "@supabase/supabase-js";
 import { ModuleEditorForm, ModuleEditorState } from "@/components/ModuleEditorForm";
 import { ModuleHistoryPanel } from "@/components/ModuleHistoryPanel";
 
@@ -125,7 +124,6 @@ function DashboardContent() {
   const moduleId = searchParams.get('id')
   const action = searchParams.get('action') || 'overview'
 
-  const [user,    setUser]    = useState<User | null>(null);
   const [userRole, setUserRole] = useState<AppRole>("GUIDE");
   const [loading, setLoading] = useState(true);
 
@@ -167,8 +165,6 @@ function DashboardContent() {
         router.push("/login");
         return;
       }
-
-      setUser(user);
 
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -590,6 +586,17 @@ function DashboardContent() {
   }
 
   // Training Modules List View
+  if (hasMinRole(userRole, 'GUIDE') && !hasMinRole(userRole, 'HOD') && action === 'modules') {
+    router.replace('/training/modules')
+    return null
+  }
+
+  // Tracks view — redirect non-HOD guides to their dedicated tracks page
+  if (hasMinRole(userRole, 'GUIDE') && !hasMinRole(userRole, 'HOD') && action === 'tracks') {
+    router.replace('/training/tracks')
+    return null
+  }
+
   if (hasMinRole(userRole, 'GUIDE') && action === 'modules') {
     const isHodView = hasMinRole(userRole, 'HOD')
     const activeModules = modules.filter(m => !m.is_archived)
@@ -1164,6 +1171,7 @@ function DashboardContent() {
 
   return (
     <>
+
         <section className="p-8 space-y-8">
           {/* Stats grid */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

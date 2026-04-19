@@ -54,7 +54,6 @@ export default async function TrainingPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNav active="training" />
 
       <main className="max-w-5xl mx-auto px-6 py-12">
         {/* Hero */}
@@ -152,7 +151,7 @@ export default async function TrainingPage() {
         ))}
 
         {/* CTA */}
-        <div className="mt-10 bg-primary rounded-2xl p-8 text-white text-center">
+        {/* <div className="mt-10 bg-primary rounded-2xl p-8 text-white text-center">
           <span className="material-symbols-outlined text-primary-fixed text-4xl mb-3 block">rocket_launch</span>
           <h2 className="text-2xl font-black mb-2">Ready to Enrol?</h2>
           <p className="text-on-primary-container font-medium mb-6 max-w-sm mx-auto">
@@ -165,7 +164,7 @@ export default async function TrainingPage() {
             Sign In to Enrol
             <span className="material-symbols-outlined text-xl">arrow_forward</span>
           </Link>
-        </div>
+        </div> */}
       </main>
 
       <footer className="border-t border-outline-variant mt-16 py-8 text-center text-xs text-outline space-y-1">

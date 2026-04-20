@@ -1,5 +1,7 @@
 // Public landing page — SFC Sarawak style
 // Server component: fetches latest announcements from Supabase
+export const dynamic = 'force-dynamic'
+
 import Link from "next/link";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";

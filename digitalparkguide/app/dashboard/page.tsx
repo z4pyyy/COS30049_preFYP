@@ -65,6 +65,7 @@ interface TrainingTrack {
   tpa_name: string
   track_type: string
   is_archived: boolean
+  price_myr: number
 }
 
 interface Module {
@@ -146,7 +147,7 @@ function DashboardContent() {
   // Park Badge (track) CRUD state
   const [trackModalOpen, setTrackModalOpen] = useState(false)
   const [editingTrack, setEditingTrack] = useState<TrainingTrack | null>(null)
-  const [trackForm, setTrackForm] = useState({ title: '', tpa_name: '', track_type: 'GUIDE' })
+  const [trackForm, setTrackForm] = useState({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800 })
   const [trackSaving, setTrackSaving] = useState(false)
   const [trackToast, setTrackToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -199,7 +200,7 @@ function DashboardContent() {
       // Fetch training tracks
       const { data: tracks, error: tracksError } = await supabase
         .from('training_tracks')
-        .select('id, title, tpa_name, track_type, is_archived')
+        .select('id, title, tpa_name, track_type, is_archived, price_myr')
         .order('tpa_name')
 
       if (tracksError) throw tracksError
@@ -248,13 +249,13 @@ function DashboardContent() {
 
   function openCreateTrack() {
     setEditingTrack(null)
-    setTrackForm({ title: '', tpa_name: '', track_type: 'GUIDE' })
+    setTrackForm({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800 })
     setTrackModalOpen(true)
   }
 
   function openEditTrack(track: TrainingTrack) {
     setEditingTrack(track)
-    setTrackForm({ title: track.title, tpa_name: track.tpa_name, track_type: track.track_type })
+    setTrackForm({ title: track.title, tpa_name: track.tpa_name, track_type: track.track_type, price_myr: track.price_myr ?? 7800 })
     setTrackModalOpen(true)
   }
 
@@ -269,7 +270,7 @@ function DashboardContent() {
       if (editingTrack) {
         const { error } = await supabase
           .from('training_tracks')
-          .update({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type })
+          .update({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type, price_myr: trackForm.price_myr })
           .eq('id', editingTrack.id)
         if (error) throw error
         setTrainingTracks(prev => prev.map(t => t.id === editingTrack.id ? { ...t, ...trackForm } : t))
@@ -277,8 +278,8 @@ function DashboardContent() {
       } else {
         const { data: newTrack, error } = await supabase
           .from('training_tracks')
-          .insert({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type })
-          .select('id, title, tpa_name, track_type, is_archived')
+          .insert({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type, price_myr: trackForm.price_myr })
+          .select('id, title, tpa_name, track_type, is_archived, price_myr')
           .single()
         if (error) throw error
         setTrainingTracks(prev => [...prev, newTrack as unknown as TrainingTrack])
@@ -710,7 +711,6 @@ function DashboardContent() {
                             <div className="flex items-center justify-end gap-2">
                               <button onClick={() => router.push(`/dashboard?action=edit&id=${module.id}`)} className="px-3 py-1 text-sm font-medium text-[#2D6A3F] hover:bg-[#f0f4f8] rounded transition-colors">✎ Edit</button>
                               <button onClick={() => handleArchiveModule(module.id)} className="px-3 py-1 text-sm font-medium text-amber-600 hover:bg-amber-50 rounded transition-colors">📦 Archive</button>
-                              <button onClick={() => handleDeleteModule(module.id)} className="px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50 rounded transition-colors">🗑️ Delete</button>
                             </div>
                           </td>
                         )}
@@ -740,9 +740,14 @@ function DashboardContent() {
                           <td className="px-6 py-3 text-xs text-gray-400">{module.training_tracks?.tpa_name || '—'}</td>
                           <td className="px-6 py-3 text-xs text-gray-400">{new Date(module.created_at).toLocaleDateString()}</td>
                           <td className="px-6 py-3 text-right">
-                            <button onClick={() => handleRestoreModule(module.id)} className="px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 rounded transition-colors flex items-center gap-1 ml-auto">
-                              <span className="material-symbols-outlined text-sm">restore</span>Restore
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => handleRestoreModule(module.id)} className="px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 rounded transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">restore</span>Restore
+                              </button>
+                              <button onClick={() => handleDeleteModule(module.id)} className="px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">delete</span>Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -800,6 +805,20 @@ function DashboardContent() {
                     <p className="text-[11px] text-gray-400 mt-1">Guides certified under this badge can only operate in this TPA.</p>
                   </div>
                   <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Activation Price (RM)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">RM</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={trackForm.price_myr}
+                        onChange={e => setTrackForm(f => ({ ...f, price_myr: Math.max(1, parseInt(e.target.value) || 0) }))}
+                        className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] transition-all"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">One-time fee guides pay to activate this track.</p>
+                  </div>
+                  <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Badge Type</label>
                     <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#f8fafc] text-gray-500">Guide Track</div>
                   </div>
@@ -850,6 +869,7 @@ function DashboardContent() {
                   <tr className="border-b border-[#e2e8f0] bg-[#f8fafc]">
                     <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Badge Name</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">TPA (Park)</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Activation Price</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Type</th>
                     <th className="px-6 py-3 text-right text-xs font-semibold text-[#1B3A24]">Actions</th>
                   </tr>
@@ -863,12 +883,14 @@ function DashboardContent() {
                           <span className="material-symbols-outlined text-sm">location_on</span>{track.tpa_name}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <span className="font-semibold text-[#1B3A24] text-sm">RM {(track.price_myr ?? 7800).toLocaleString('en-MY')}</span>
+                      </td>
                       <td className="px-6 py-4"><span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800">🧭 Guide</span></td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => openEditTrack(track)} className="px-3 py-1 text-sm font-medium text-[#2D6A3F] hover:bg-[#f0f4f8] rounded transition-colors">✎ Edit</button>
                           <button onClick={() => handleArchiveTrack(track.id)} className="px-3 py-1 text-sm font-medium text-amber-600 hover:bg-amber-50 rounded transition-colors">📦 Archive</button>
-                          <button onClick={() => handleDeleteTrack(track.id)} className="px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50 rounded transition-colors">🗑️ Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -895,9 +917,14 @@ function DashboardContent() {
                           <td className="px-6 py-3"><div className="flex items-center gap-2"><span className="text-base">🏅</span><p className="text-sm font-medium text-gray-500 line-through">{track.title}</p></div></td>
                           <td className="px-6 py-3 text-xs text-gray-400">{track.tpa_name}</td>
                           <td className="px-6 py-3 text-right">
-                            <button onClick={() => handleUnarchiveTrack(track.id)} className="px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 rounded transition-colors flex items-center gap-1 ml-auto">
-                              <span className="material-symbols-outlined text-sm">restore</span>Restore
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => handleUnarchiveTrack(track.id)} className="px-3 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 rounded transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">restore</span>Restore
+                              </button>
+                              <button onClick={() => handleDeleteTrack(track.id)} className="px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded transition-colors flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm">delete</span>Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

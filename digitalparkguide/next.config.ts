@@ -4,9 +4,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.resolve(__dirname),
   serverExternalPackages: ['stripe'],
-  turbopack: {
-    root: path.resolve(__dirname),
-  },
   allowedDevOrigins: ['192.168.0.119'],
   async headers() {
     return [

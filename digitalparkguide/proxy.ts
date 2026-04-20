@@ -1,11 +1,11 @@
-// Middleware: session refresh + dynamic RBAC from page_access table
+// Proxy: session refresh + dynamic RBAC from page_access table
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { hasMinRole, type AppRole } from './types/roles'
 
 const ALWAYS_SKIP = ['/auth/', '/unauthorized', '/verify-otp', '/_next', '/favicon']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

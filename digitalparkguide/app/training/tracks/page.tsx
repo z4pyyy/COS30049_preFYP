@@ -1,8 +1,12 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { hasMinRole, type AppRole } from '@/types/roles'
 import { EnrollButton } from '@/components/EnrollButton'
+import PaymentStatusModal from '@/components/PaymentStatusModal'
+import { stripe } from '@/lib/stripe'
 
 interface TrainingTrack {
   id: string
@@ -14,6 +18,7 @@ interface TrainingTrack {
   eligibility: string | null
   is_open: boolean
   module_count: number
+  price_myr: number
 }
 
 interface Enrollment {
@@ -27,11 +32,42 @@ const TRACK_BADGE: Record<string, { bg: string; text: string; icon: string }> = 
   RANGER:       { bg: 'bg-[#fef9c3]', text: 'text-[#854d0e]', icon: 'shield' },
 }
 
-export default async function GuideTracksPage() {
+export default async function GuideTracksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ payment?: string; session_id?: string }>
+}) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login?next=/training/tracks')
+
+  // Activate enrollment immediately on successful Stripe redirect (before webhook fires)
+  const { payment, session_id } = await searchParams
+  if (payment === 'success' && session_id) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(session_id)
+      const guide_id = session.metadata?.guide_id
+      const track_id = session.metadata?.track_id
+      if (guide_id && track_id && guide_id === user.id && session.payment_status === 'paid') {
+        const admin = createAdminClient()
+        const { error } = await admin.from('guide_track_enrollments').upsert(
+          {
+            guide_id,
+            track_id,
+            status: 'active',
+            payment_status: 'paid',
+            stripe_session_id: session.id,
+            paid_at: new Date().toISOString(),
+          },
+          { onConflict: 'guide_id,track_id' }
+        )
+        if (error) console.error('[stripe-redirect] enrollment upsert failed:', error.message)
+      }
+    } catch (err) {
+      console.error('[stripe-redirect] session verify failed:', err)
+    }
+  }
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -44,7 +80,7 @@ export default async function GuideTracksPage() {
   // Fetch all active, non-archived tracks
   const { data: rawTracks } = await supabase
     .from('training_tracks')
-    .select('id, title, tpa_name, track_type, overview, duration_weeks, eligibility, is_open')
+    .select('id, title, tpa_name, track_type, overview, duration_weeks, eligibility, is_open, price_myr')
     .eq('is_archived', false)
     .order('tpa_name')
     .order('title')
@@ -83,6 +119,9 @@ export default async function GuideTracksPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
+      <Suspense fallback={null}>
+        <PaymentStatusModal />
+      </Suspense>
       <main className="max-w-6xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -201,9 +240,9 @@ export default async function GuideTracksPage() {
                       </div>
 
                       {/* Action */}
-                      <div className="flex items-center gap-3">
-                        <EnrollButton trackId={track.id} enrolled={isEnrolled} />
-                        {isEnrolled && (
+                      {isEnrolled ? (
+                        <div className="flex items-center gap-3">
+                          <EnrollButton trackId={track.id} enrolled={isEnrolled} />
                           <Link
                             href={`/training/modules?tpa=${encodeURIComponent(tpa)}`}
                             className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#2D6A3F] hover:text-[#1B3A24] transition"
@@ -211,8 +250,16 @@ export default async function GuideTracksPage() {
                             View Modules
                             <span className="material-symbols-outlined text-sm">arrow_forward</span>
                           </Link>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-bold text-[#1B3A24]">
+                            RM {track.price_myr.toLocaleString('en-MY')}
+                            <span className="text-xs font-normal text-[#94a3b8] ml-1">one-time</span>
+                          </span>
+                          <EnrollButton trackId={track.id} enrolled={isEnrolled} />
+                        </div>
+                      )}
                     </article>
                   )
                 })}

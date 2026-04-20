@@ -65,6 +65,7 @@ interface TrainingTrack {
   tpa_name: string
   track_type: string
   is_archived: boolean
+  price_myr: number
 }
 
 interface Module {
@@ -146,7 +147,7 @@ function DashboardContent() {
   // Park Badge (track) CRUD state
   const [trackModalOpen, setTrackModalOpen] = useState(false)
   const [editingTrack, setEditingTrack] = useState<TrainingTrack | null>(null)
-  const [trackForm, setTrackForm] = useState({ title: '', tpa_name: '', track_type: 'GUIDE' })
+  const [trackForm, setTrackForm] = useState({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800 })
   const [trackSaving, setTrackSaving] = useState(false)
   const [trackToast, setTrackToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -248,13 +249,13 @@ function DashboardContent() {
 
   function openCreateTrack() {
     setEditingTrack(null)
-    setTrackForm({ title: '', tpa_name: '', track_type: 'GUIDE' })
+    setTrackForm({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800 })
     setTrackModalOpen(true)
   }
 
   function openEditTrack(track: TrainingTrack) {
     setEditingTrack(track)
-    setTrackForm({ title: track.title, tpa_name: track.tpa_name, track_type: track.track_type })
+    setTrackForm({ title: track.title, tpa_name: track.tpa_name, track_type: track.track_type, price_myr: track.price_myr ?? 7800 })
     setTrackModalOpen(true)
   }
 
@@ -269,7 +270,7 @@ function DashboardContent() {
       if (editingTrack) {
         const { error } = await supabase
           .from('training_tracks')
-          .update({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type })
+          .update({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type, price_myr: trackForm.price_myr })
           .eq('id', editingTrack.id)
         if (error) throw error
         setTrainingTracks(prev => prev.map(t => t.id === editingTrack.id ? { ...t, ...trackForm } : t))
@@ -277,8 +278,8 @@ function DashboardContent() {
       } else {
         const { data: newTrack, error } = await supabase
           .from('training_tracks')
-          .insert({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type })
-          .select('id, title, tpa_name, track_type, is_archived')
+          .insert({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type, price_myr: trackForm.price_myr })
+          .select('id, title, tpa_name, track_type, is_archived, price_myr')
           .single()
         if (error) throw error
         setTrainingTracks(prev => [...prev, newTrack as unknown as TrainingTrack])
@@ -798,6 +799,20 @@ function DashboardContent() {
                       className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] transition-all"
                     />
                     <p className="text-[11px] text-gray-400 mt-1">Guides certified under this badge can only operate in this TPA.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Activation Price (RM)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">RM</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={trackForm.price_myr}
+                        onChange={e => setTrackForm(f => ({ ...f, price_myr: Math.max(1, parseInt(e.target.value) || 0) }))}
+                        className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] transition-all"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">One-time fee guides pay to activate this track.</p>
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Badge Type</label>

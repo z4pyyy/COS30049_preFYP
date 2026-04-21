@@ -57,21 +57,42 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
 
   const isDashboardRoot = pathname === '/dashboard' && !action
   const isHod = hasMinRole(userRole, 'HOD')
-  const roleLabel = isHod ? 'HoD' : userRole === 'SENIOR_GUIDE' ? 'Senior Guide' : 'Guide'
+  const isSenior = userRole === 'SENIOR_GUIDE'
+  // Accurate role label for the user card at the bottom
+  const roleLabel = isHod ? 'HoD' : isSenior ? 'Senior Guide' : 'Guide'
 
+  // Senior Guide gets a dedicated "My Group" entry that no
+  // other role sees. HoD gets a "Groups" entry to reassign.
   const items = [
     { href: '/dashboard', icon: 'dashboard', label: 'Overview', active: isDashboardRoot },
+
+    // Senior-only: monitor guides under them
+    ...(isSenior ? [
+      {
+        href: '/dashboard/senior',
+        icon: 'groups',
+        label: 'My Group',
+        active: pathname.startsWith('/dashboard/senior'),
+      },
+    ] : []),
+
     { href: '/dashboard/guides', icon: 'explore', label: 'Guide Track', active: pathname.startsWith('/dashboard/guides') },
-    { href: '/dashboard/tracks', icon: 'trophy', label: 'Tracks', active: pathname.startsWith('/dashboard/tracks') },
+    { href: '/dashboard/tracks', icon: 'trophy',  label: 'Tracks',      active: pathname.startsWith('/dashboard/tracks') },
+
+    // Guides + Seniors see their learning modules
     ...(!isHod ? [
       { href: '/training/modules', icon: 'school', label: 'Training Modules', active: pathname.startsWith('/training/modules') },
     ] : []),
+
+    // HoD admin tools
     ...(isHod ? [
-      { href: '/dashboard?action=modules', icon: 'school', label: 'Training Modules', active: action === 'modules' || action === 'edit' || action === 'new' },
-      { href: '/dashboard?action=applications', icon: 'person_add', label: 'Applications', active: action === 'applications' },
-      { href: '/dashboard/hod/announcements', icon: 'campaign', label: 'Announcements', active: pathname.startsWith('/dashboard/hod/announcements') },
-      { href: '/dashboard/quiz-builder', icon: 'edit_note', label: 'Quiz Builder', active: pathname.startsWith('/dashboard/quiz-builder') },
-      { href: '/dashboard/quiz-result', icon: 'analytics', label: 'Quiz Results', active: pathname.startsWith('/dashboard/quiz-result') },
+      { href: '/dashboard?action=modules',      icon: 'school',     label: 'Training Modules', active: action === 'modules' || action === 'edit' || action === 'new' },
+      { href: '/dashboard?action=applications', icon: 'person_add', label: 'Applications',      active: action === 'applications' },
+      // Task 3 — HoD reassign UI lives here
+      { href: '/dashboard/hod/groups',          icon: 'groups',     label: 'Guide Groups',      active: pathname.startsWith('/dashboard/hod/groups') },
+      { href: '/dashboard/hod/announcements',   icon: 'campaign',   label: 'Announcements',     active: pathname.startsWith('/dashboard/hod/announcements') },
+      { href: '/dashboard/quiz-builder',        icon: 'edit_note',  label: 'Quiz Builder',      active: pathname.startsWith('/dashboard/quiz-builder') },
+      { href: '/dashboard/quiz-result',         icon: 'analytics',  label: 'Quiz Results',      active: pathname.startsWith('/dashboard/quiz-result') },
     ] : []),
   ]
 
@@ -89,11 +110,10 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
           <span className="material-symbols-outlined">menu</span>
         </button>
         <p className="ml-3 text-[0.6875rem] uppercase tracking-widest text-slate-500 font-bold">
-          {isHod ? 'HoD Menu' : 'Guide Menu'}
+          {isHod ? 'HoD Menu' : isSenior ? 'Senior Menu' : 'Guide Menu'}
         </p>
       </div>
 
-      {/* Backdrop (mobile only) */}
       {open && (
         <div
           className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
@@ -103,7 +123,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
       )}
 
       <aside
-        className={`fixed left-0 top-0 lg:top-[6.25rem] z-50 lg:z-30 h-screen lg:h-[calc(100vh-6.25rem)] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 lg:top-25 z-50 lg:z-30 h-screen lg:h-[calc(100vh-6.25rem)] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

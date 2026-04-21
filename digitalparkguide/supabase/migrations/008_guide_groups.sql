@@ -1,6 +1,4 @@
 -- ============================================================
--- Senior Guide → Guide grouping for Task 3.
---
 -- Model:
 --   * One Senior Guide can lead many Guides within a single TPA.
 --   * A Guide belongs to AT MOST ONE Senior at a time.
@@ -37,8 +35,7 @@ CREATE POLICY "ggm: senior reads own group"
   ON public.guide_group_members FOR SELECT
   USING (auth.uid() = senior_guide_id);
 
--- Guides can see their own membership row (so the UI can show
--- "Your Senior: …")
+-- Guides can see their own membership row
 CREATE POLICY "ggm: guide reads own row"
   ON public.guide_group_members FOR SELECT
   USING (auth.uid() = guide_id);
@@ -51,8 +48,6 @@ CREATE POLICY "ggm: hod+ full access"
 
 
 -- ── Helper: pick the least-loaded senior in a given TPA ──────
--- Returns NULL if no senior exists for that TPA (caller decides
--- whether to leave the guide unassigned or show a warning).
 CREATE OR REPLACE FUNCTION public.pick_least_loaded_senior(p_tpa_name TEXT)
 RETURNS UUID
 LANGUAGE plpgsql
@@ -62,19 +57,12 @@ AS $$
 DECLARE
   v_senior_id UUID;
 BEGIN
-  -- Seniors are identified by profiles.role = 'SENIOR_GUIDE'
-  -- Their TPA is inferred from any approved guide_application they
-  -- originally submitted (stored on profiles via a helper column
-  -- added further down). For now we derive it from guide_applications.
   SELECT p.id
     INTO v_senior_id
   FROM public.profiles p
   LEFT JOIN public.guide_group_members m ON m.senior_guide_id = p.id
   WHERE p.role = 'SENIOR_GUIDE'
     AND p.id IN (
-      -- Limit to seniors whose most recent approved application
-      -- was for this TPA. Without a TPA column on profiles this is
-      -- the most reliable source of truth the schema gives us.
       SELECT DISTINCT ga.applicant_id
       FROM public.guide_applications ga
       WHERE ga.tpa_name = p_tpa_name
@@ -88,10 +76,7 @@ BEGIN
 END;
 $$;
 
-
 -- ── Trigger: auto-assign on new GUIDE role ───────────────────
--- Fires on profiles UPDATE when role transitions to GUIDE (i.e.
--- the moment HoD approves an application via approve_guide_application).
 CREATE OR REPLACE FUNCTION public.auto_assign_guide_to_group()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -146,9 +131,6 @@ CREATE TRIGGER trg_auto_assign_guide
 
 
 -- ── View: group roster with progress rollup ──────────────────
--- Joins guide_group_members with guide_progress_summary (view from
--- migration 007) so the Senior dashboard can render everything in
--- one query. security_invoker inherits caller RLS.
 DROP VIEW IF EXISTS public.senior_group_roster CASCADE;
 CREATE VIEW public.senior_group_roster
 WITH (security_invoker = true) AS

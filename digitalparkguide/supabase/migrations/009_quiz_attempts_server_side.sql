@@ -1,23 +1,3 @@
--- ============================================================
--- Task 4/5 — quiz restructure + server-side timer.
---
--- Schema changes:
---  • quizzes.time_limit_seconds  — HoD-configurable duration
---  • quiz_attempts.started_at    — when the server issued the attempt
---  • quiz_attempts.expires_at    — started_at + time_limit_seconds
---  • quiz_attempts.submitted_at  — when the submit endpoint ran
---  • quiz_attempts.status        — in_progress / submitted / expired
---
--- The timer is now authoritative on the server: the client polls
--- expires_at and cannot gain time by hiding its tab or reloading.
---
--- RLS additions:
---  • Guides read their own attempts
---  • Senior Guides read attempts of guides in their group
---    (via guide_group_members — added in migration 008)
---  • HoD+ read everything
--- ============================================================
-
 -- ── quizzes: optional time limit (NULL = no limit) ─────────────
 ALTER TABLE public.quizzes
   ADD COLUMN IF NOT EXISTS time_limit_seconds INT;
@@ -28,7 +8,7 @@ ALTER TABLE public.quizzes
   ADD CONSTRAINT quizzes_max_attempts_positive
   CHECK (max_attempts IS NULL OR max_attempts >= 1);
 
--- Guard against silly values (5 seconds, 30 days, etc.)
+-- Guard against silly values 
 ALTER TABLE public.quizzes
   ADD CONSTRAINT quizzes_time_limit_reasonable
   CHECK (time_limit_seconds IS NULL OR (time_limit_seconds BETWEEN 60 AND 14400));
@@ -45,7 +25,6 @@ ALTER TABLE public.quiz_attempts
   ADD COLUMN IF NOT EXISTS status       TEXT DEFAULT 'submitted'
     CHECK (status IN ('in_progress', 'submitted', 'expired'));
 
--- Existing rows (if any) predate this schema — mark them submitted
 UPDATE public.quiz_attempts
 SET status = 'submitted'
 WHERE status IS NULL;
@@ -79,7 +58,6 @@ CREATE POLICY "qa: own update"
   WITH CHECK (auth.uid() = user_id);
 
 -- Senior Guide reads attempts of guides in their group.
--- Task 3/5: results must be visible to the leading senior for monitoring.
 CREATE POLICY "qa: senior read"
   ON public.quiz_attempts FOR SELECT
   USING (
@@ -98,8 +76,6 @@ CREATE POLICY "qa: hod+ read"
 
 
 -- ── Helper: do we still have attempts left? ──────────────────
--- Used by the /api/quiz-attempts/start endpoint to avoid race
--- conditions between multiple tabs opening the same quiz.
 CREATE OR REPLACE FUNCTION public.remaining_quiz_attempts(p_quiz_id UUID, p_user UUID)
 RETURNS INT
 LANGUAGE sql
@@ -114,7 +90,7 @@ STABLE AS $$
   LEFT JOIN public.quiz_attempts a
          ON a.quiz_id = q.id
         AND a.user_id = p_user
-        AND a.status <> 'in_progress'  -- in-progress doesn't burn an attempt yet
+        AND a.status <> 'in_progress' 
   WHERE q.id = p_quiz_id
   GROUP BY q.max_attempts;
 $$;

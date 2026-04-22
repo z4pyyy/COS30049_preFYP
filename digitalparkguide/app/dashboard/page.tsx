@@ -58,10 +58,15 @@ interface Application {
   tpa_name: string;
   motivation: string;
   experience: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
+  status: "PENDING" | "UNDER_REVIEW" | "INTERVIEW_SCHEDULED" | "APPROVED" | "REJECTED";
   reviewer_notes: string;
   submitted_at: string;
   reviewed_at: string | null;
+  // Task 7 — interview fields
+  interview_date: string | null;
+  interview_time: string | null;
+  interview_location: string | null;
+  document_count: number;
   training_tracks: { title: string } | null;
 }
 
@@ -101,7 +106,7 @@ function DashboardContent() {
 
   // Applications state
   const [applications, setApplications] = useState<Application[]>([])
-  const [appTab, setAppTab] = useState<"PENDING" | "APPROVED" | "REJECTED">("PENDING")
+  const [appTab, setAppTab] = useState<Application['status']>("PENDING")
   const [expandedApp, setExpandedApp] = useState<string | null>(null)
   const [appNotes, setAppNotes] = useState<Record<string, string>>({})
   const [processingApp, setProcessingApp] = useState<string | null>(null)
@@ -921,16 +926,20 @@ function DashboardContent() {
   // Applications View (HoD)
   if (hasMinRole(userRole, 'HOD') && action === 'applications') {
     const filteredApps = applications.filter(a => a.status === appTab);
-    const appCounts = {
-      PENDING: applications.filter(a => a.status === "PENDING").length,
-      APPROVED: applications.filter(a => a.status === "APPROVED").length,
-      REJECTED: applications.filter(a => a.status === "REJECTED").length,
+    const appCounts: Record<Application['status'], number> = {
+      PENDING:             applications.filter(a => a.status === "PENDING").length,
+      UNDER_REVIEW:        applications.filter(a => a.status === "UNDER_REVIEW").length,
+      INTERVIEW_SCHEDULED: applications.filter(a => a.status === "INTERVIEW_SCHEDULED").length,
+      APPROVED:            applications.filter(a => a.status === "APPROVED").length,
+      REJECTED:            applications.filter(a => a.status === "REJECTED").length,
     };
 
-    const TAB_CONFIG = {
-      PENDING:  { label: "Pending",  icon: "hourglass_top", color: "text-amber-700",  badge: "bg-amber-100 text-amber-800" },
-      APPROVED: { label: "Approved", icon: "verified",      color: "text-emerald-700",badge: "bg-emerald-100 text-emerald-800" },
-      REJECTED: { label: "Rejected", icon: "cancel",        color: "text-red-700",    badge: "bg-red-50 text-red-800" },
+    const TAB_CONFIG: Record<Application['status'], { label: string; icon: string; color: string; badge: string }> = {
+      PENDING:              { label: "Pending",   icon: "hourglass_top",   color: "text-amber-700",   badge: "bg-amber-100 text-amber-800" },
+      UNDER_REVIEW:         { label: "Reviewing", icon: "reviews",         color: "text-blue-700",    badge: "bg-blue-100 text-blue-800" },
+      INTERVIEW_SCHEDULED:  { label: "Interview", icon: "event_available", color: "text-indigo-700",  badge: "bg-indigo-100 text-indigo-800" },
+      APPROVED:             { label: "Approved",  icon: "verified",        color: "text-emerald-700", badge: "bg-emerald-100 text-emerald-800" },
+      REJECTED:             { label: "Rejected",  icon: "cancel",          color: "text-red-700",     badge: "bg-red-50 text-red-800" },
     };
 
     const formatDate = (iso: string) => new Date(iso).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
@@ -1050,7 +1059,7 @@ function DashboardContent() {
                           </div>
                         )}
 
-                        {app.status === "PENDING" && (
+                        {(app.status === "PENDING" || app.status === "UNDER_REVIEW" || app.status === "INTERVIEW_SCHEDULED") && (
                           <div className="space-y-3 pt-1">
                             <div>
                               <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1.5">
@@ -1064,6 +1073,20 @@ function DashboardContent() {
                                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                               />
                             </div>
+
+                            <InterviewScheduler
+                              applicationId={app.id}
+                              existing={{
+                                date:     app.interview_date,
+                                time:     app.interview_time,
+                                location: app.interview_location,
+                              }}
+                              onScheduled={async () => {
+                                showAppToast("Interview scheduled and applicant notified.", true)
+                                setExpandedApp(null)
+                                await loadApplicationsData()
+                              }}
+                            />
 
                             <div className="flex gap-3 justify-end">
                               <button onClick={() => handleRejectApplication(app.id)} disabled={processingApp === app.id}
@@ -1132,4 +1155,86 @@ export default function DashboardPage() {
       <DashboardContent />
     </Suspense>
   );
+}
+
+function InterviewScheduler({
+  applicationId,
+  existing,
+  onScheduled,
+}: {
+  applicationId: string
+  existing: { date: string | null; time: string | null; location: string | null }
+  onScheduled: () => void | Promise<void>
+}) {
+  const [open, setOpen]     = useState(!!existing.date)  
+  const [date, setDate]     = useState(existing.date ?? "")
+  const [time, setTime]     = useState(existing.time?.slice(0, 5) ?? "")
+  const [loc,  setLoc]      = useState(existing.location ?? "")
+  const [saving, setSaving] = useState(false)
+  const [err, setErr]       = useState<string | null>(null)
+
+  async function submit() {
+    setErr(null); setSaving(true)
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/schedule-interview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time, location: loc }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? "Failed to schedule")
+      await onScheduled()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to schedule")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        className="w-full text-left px-4 py-2.5 border-2 border-dashed border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-50 transition-all flex items-center gap-2">
+        <span className="material-symbols-outlined text-base">event</span>
+        Schedule Interview Instead
+      </button>
+    )
+  }
+
+  return (
+    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-widest text-indigo-900 flex items-center gap-1">
+          <span className="material-symbols-outlined text-base">event</span>
+          {existing.date ? "Reschedule Interview" : "Schedule Interview"}
+        </p>
+        <button onClick={() => setOpen(false)} className="text-indigo-700 hover:bg-white/60 rounded p-1">
+          <span className="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Date</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Time</label>
+          <input type="time" value={time} onChange={e => setTime(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Location</label>
+        <input type="text" value={loc} onChange={e => setLoc(e.target.value)}
+          placeholder="e.g. SFC HQ Kuching — Meeting Room 3"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      {err && <p className="text-xs text-red-700">{err}</p>}
+      <button onClick={submit} disabled={saving || !date || !time || !loc.trim()}
+        className="w-full px-4 py-2 rounded-lg bg-indigo-700 text-white font-semibold text-sm hover:bg-indigo-800 transition-all disabled:opacity-50">
+        {saving ? "Scheduling…" : existing.date ? "Update Interview" : "Confirm & Notify Applicant"}
+      </button>
+    </div>
+  )
 }

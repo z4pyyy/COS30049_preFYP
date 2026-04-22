@@ -1,9 +1,6 @@
 'use client'
 
-// HoD Quiz Builder — adds Time Limit configuration for Task 5.
-// Quizzes are already module-scoped (Task 4) — this just exposes
-// the new time_limit_seconds field and keeps max_attempts configurable.
-
+// HoD Quiz Builder
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -78,7 +75,7 @@ export default function QuizBuilder() {
     }
     if (maxAttempts < 1) { showToast('Max attempts must be at least 1.', false); return }
 
-    // Validate time limit — DB check is 60–14400s
+    // Validate time limit
     const timeLimitSec =
       timeLimitMinutes === '' || timeLimitMinutes === 0
         ? null
@@ -97,7 +94,7 @@ export default function QuizBuilder() {
           module_id: moduleId,
           passing_score: passingScore,
           max_attempts: maxAttempts,
-          time_limit_seconds: timeLimitSec,  // Task 5
+          time_limit_seconds: timeLimitSec, 
         })
         .select()
         .single()
@@ -182,7 +179,7 @@ export default function QuizBuilder() {
         </div>
       </div>
 
-      {/* Row 2 — passing / attempts / time limit  (Task 5) */}
+      {/* Row 2 — passing / attempts / time limit */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold uppercase text-slate-400">Passing Score (%)</label>

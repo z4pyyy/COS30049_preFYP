@@ -1,10 +1,5 @@
 'use client'
 
-// Guide quiz taker — rewritten for Task 5.
-// Timer is server-authoritative: we start the attempt on the server,
-// poll the expires_at timestamp periodically, and submit server-side.
-// Hiding the tab or reloading no longer pauses the countdown.
-
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import TopNavClient from '@/components/TopNavClient'
@@ -119,10 +114,6 @@ function ParkQuizInterface() {
   }, [submitting])
 
   // ── Server-authoritative countdown ──────────────────────────
-  // Tick every second from the server-stamped expires_at value, NOT
-  // from a local timer that could drift or pause. We also re-poll the
-  // server every 15s to correct for clock skew and to catch the case
-  // where the user returns after a long sleep.
   useEffect(() => {
     if (!attempt || !attempt.expires_at || result) return
 
@@ -132,8 +123,6 @@ function ParkQuizInterface() {
       const remaining = Math.max(0, Math.round((expiryMs - Date.now()) / 1000))
       setRemainingSec(remaining)
       if (remaining <= 0) {
-        // Fire-and-forget submit. We don't await here because the tick
-        // runs on an interval and we only want one submit to slip through.
         submitAttempt()
       }
     }
@@ -149,15 +138,11 @@ function ParkQuizInterface() {
         setRemainingSec(body.remaining_seconds)
         if (body.remaining_seconds <= 0) submitAttempt()
       } catch {
-        /* network blip — next poll will retry */
       }
     }
 
     const pollId = setInterval(pollServer, 15000)
 
-    // Also poll whenever the tab becomes visible again — handles the
-    // "closed browser, reopened later" edge case the Sprint 1 timer
-    // couldn't handle.
     function onVisible() { if (document.visibilityState === 'visible') pollServer() }
     document.addEventListener('visibilitychange', onVisible)
 

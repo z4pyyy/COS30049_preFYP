@@ -2,8 +2,6 @@
 
 // Quiz Results dashboard — visible to HoD (all attempts) and
 // Senior Guide (their group only, via RLS on quiz_attempts).
-// Task 3/5 — senior monitoring of their guides' quiz outcomes.
-
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -33,8 +31,7 @@ export default function QuizResultsPage() {
     let cancelled = false
     async function load() {
       // RLS decides what's visible: HoD+ gets everything, Senior
-      // gets group-only, Guide gets their own attempts. No role check
-      // needed here because the database enforces it.
+      // gets group-only, Guide gets their own attempts. 
       const { data, error } = await supabase
         .from('quiz_attempts')
         .select(`

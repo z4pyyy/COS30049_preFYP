@@ -4,6 +4,16 @@ import TopNav from '@/components/TopNav'
 import { GuardianPortalSidebar } from '@/components/GuardianPortalSidebar'
 import type { AppRole } from '@/types/roles'
 
+function contextLabelFor(role: AppRole | null): string {
+  switch (role) {
+    case 'SUPERADMIN':   return 'Superadmin Console'
+    case 'HOD':          return 'HoD Console'
+    case 'SENIOR_GUIDE': return 'Senior Guide Console'
+    case 'GUIDE':        return 'Guide Dashboard'
+    default:             return 'Guide Dashboard'
+  }
+}
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -16,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .single()
 
   const role = (profile?.role ?? null) as AppRole | null
-  const context = role === 'HOD' ? 'HoD Console' : 'Guide Dashboard'
+  const context = contextLabelFor(role)
   const fullName = profile?.full_name || user.email || 'Guide'
   const initials = fullName
     .split(' ')

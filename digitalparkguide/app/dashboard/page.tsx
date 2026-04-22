@@ -1,63 +1,12 @@
 "use client";
 
-// A2.4 — Superadmin Dashboard with role-based UI guards
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { can, type AppRole, hasMinRole } from "@/types/roles";
+import { hasMinRole, type AppRole } from "@/types/roles";
 import { ModuleEditorForm, ModuleEditorState } from "@/components/ModuleEditorForm";
 import { ModuleHistoryPanel } from "@/components/ModuleHistoryPanel";
-
-// ── Mock feed data (replaced with Supabase queries in later sprints) ──
-const FEED_ITEMS = [
-  {
-    id: 1,
-    icon: "report_problem",
-    iconBg: "bg-[#DC2E27]/10",
-    iconColor: "text-[#DC2E27]",
-    title: "Unsanctioned Movement Detected",
-    time: "02 MIN AGO",
-    body: "Grid 42-B. 3 individuals without active permits. Ranger team dispatching.",
-    action: "Assign Guide",
-    fill: true,
-  },
-  {
-    id: 2,
-    icon: "school",
-    iconBg: "bg-emerald-100",
-    iconColor: "text-emerald-800",
-    title: "Module Completion: Advanced Tracking",
-    time: "14 MIN AGO",
-    body: "Ahmad bin Yusuf (Ranger ID: SFC-771) has completed the certification.",
-    action: "Verify Bio",
-    fill: true,
-  },
-  {
-    id: 3,
-    icon: "info",
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-800",
-    title: "System Update: Biodiversity 2.4",
-    time: "1 HOUR AGO",
-    body: "New AR overlays added for orchid identification in Guide Track.",
-    action: "Release Notes",
-    fill: true,
-  },
-];
-
-const PATROL_MEMBERS = [
-  { name: "Sgt. Tan Boon",    track: "Ranger Track Level 4", progress: 66 },
-  { name: "Rgr. Siti Aminah", track: "Guide Track Level 2",  progress: 33 },
-];
-
-const STATS = [
-  { label: "Active Rangers",   value: "1,248", badge: "+12% vs LW",   color: "border-primary",    valueColor: "text-primary",    badgeColor: "text-primary-container" },
-  { label: "Training Modules", value: "86%",   badge: "Completion",   color: "border-primary",    valueColor: "text-primary",    badgeColor: "text-primary-container" },
-  { label: "Active Incidents", value: "04",    badge: "High Priority", color: "border-[#DC2E27]", valueColor: "text-[#DC2E27]",  badgeColor: "text-[#DC2E27] animate-pulse" },
-  { label: "Analytics Score",  value: "9.4",   badge: "System Health", color: "border-secondary", valueColor: "text-secondary",  badgeColor: "text-secondary-container" },
-];
-
-const BAR_HEIGHTS = ["h-4", "h-6", "h-8", "h-12", "h-7", "h-10", "h-12"];
+import TrainingProgressWidget from "@/components/TrainingProgressWidget";
 
 interface TrainingTrack {
   id: string
@@ -110,10 +59,15 @@ interface Application {
   tpa_name: string;
   motivation: string;
   experience: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
+  status: "PENDING" | "UNDER_REVIEW" | "INTERVIEW_SCHEDULED" | "APPROVED" | "REJECTED";
   reviewer_notes: string;
   submitted_at: string;
   reviewed_at: string | null;
+  // Task 7 — interview fields
+  interview_date: string | null;
+  interview_time: string | null;
+  interview_location: string | null;
+  document_count: number;
   training_tracks: { title: string } | null;
 }
 
@@ -153,7 +107,7 @@ function DashboardContent() {
 
   // Applications state
   const [applications, setApplications] = useState<Application[]>([])
-  const [appTab, setAppTab] = useState<"PENDING" | "APPROVED" | "REJECTED">("PENDING")
+  const [appTab, setAppTab] = useState<Application['status']>("PENDING")
   const [expandedApp, setExpandedApp] = useState<string | null>(null)
   const [appNotes, setAppNotes] = useState<Record<string, string>>({})
   const [processingApp, setProcessingApp] = useState<string | null>(null)
@@ -179,11 +133,9 @@ function DashboardContent() {
         setUserRole((user.user_metadata?.role ?? "GUIDE") as AppRole);
       }
 
-      // Load training modules for GUIDE+ (read-only for guides, CRUD for HOD+)
       if (hasMinRole(profile?.role as AppRole, "GUIDE")) {
         await loadTrainingModulesData()
       }
-      // Load applications and module history for HOD+
       if (hasMinRole(profile?.role as AppRole, "HOD")) {
         await loadApplicationsData()
         await loadModuleHistory()
@@ -193,11 +145,11 @@ function DashboardContent() {
     }
 
     init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadTrainingModulesData = async () => {
     try {
-      // Fetch training tracks
       const { data: tracks, error: tracksError } = await supabase
         .from('training_tracks')
         .select('id, title, tpa_name, track_type, is_archived, price_myr')
@@ -206,7 +158,6 @@ function DashboardContent() {
       if (tracksError) throw tracksError
       setTrainingTracks((tracks || []) as unknown as TrainingTrack[])
 
-      // Fetch modules
       const { data: mods, error: modsError } = await supabase
         .from('training_modules')
         .select('id, track_id, title, is_active, is_archived, additional_track_ids, created_at, training_tracks(id, title, tpa_name, track_type)')
@@ -299,7 +250,6 @@ function DashboardContent() {
     const { error } = await supabase.from('training_tracks').update({ is_archived: true }).eq('id', id)
     if (error) { setTrackToast({ msg: error.message, ok: false }); setTimeout(() => setTrackToast(null), 4000); return }
 
-    // Cascade: handle all modules where this is the primary track
     const primaryMods = modules.filter(m => m.track_id === id && !m.is_archived)
     for (const mod of primaryMods) {
       const extra = (mod.additional_track_ids || []).filter(tid => tid !== id)
@@ -309,7 +259,6 @@ function DashboardContent() {
         await supabase.from('training_modules').update({ track_id: extra[0], additional_track_ids: extra.slice(1) }).eq('id', mod.id)
       }
     }
-    // Remove from additional_track_ids on other modules
     const extraMods = modules.filter(m => (m.additional_track_ids || []).includes(id))
     for (const mod of extraMods) {
       const newExtra = (mod.additional_track_ids || []).filter(tid => tid !== id)
@@ -324,7 +273,6 @@ function DashboardContent() {
   async function handleUnarchiveTrack(id: string) {
     const { error } = await supabase.from('training_tracks').update({ is_archived: false }).eq('id', id)
     if (error) { setTrackToast({ msg: error.message, ok: false }); setTimeout(() => setTrackToast(null), 4000); return }
-    // Cascade: restore modules that were archived solely because of this track
     const archivedPrimary = modules.filter(m => m.track_id === id && m.is_archived)
     for (const mod of archivedPrimary) {
       await supabase.from('training_modules').update({ is_archived: false }).eq('id', mod.id)
@@ -399,6 +347,7 @@ function DashboardContent() {
                 ...m,
                 title: updatedModule?.title || m.title,
                 is_active: updatedModule?.is_active ?? m.is_active,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 additional_track_ids: (updatedModule as any)?.additional_track_ids ?? m.additional_track_ids,
                 training_tracks: (updatedModule?.training_tracks ?? m.training_tracks) as unknown as Module['training_tracks'],
               }
@@ -523,7 +472,7 @@ function DashboardContent() {
 
   // Training Modules Edit View
   if (hasMinRole(userRole, 'HOD') && action === 'edit' && moduleId) {
-    const editContent = (
+    return (
       <div className="min-h-screen bg-[#f8fafc] p-6">
         <div className="max-w-4xl mx-auto">
           <button
@@ -555,13 +504,11 @@ function DashboardContent() {
         </div>
       </div>
     )
-
-    return editContent
   }
 
   // Training Modules Create View
   if (hasMinRole(userRole, 'HOD') && action === 'new') {
-    const createContent = (
+    return (
       <div className="min-h-screen bg-[#f8fafc] p-6">
         <div className="max-w-4xl mx-auto">
           <button
@@ -582,22 +529,19 @@ function DashboardContent() {
         </div>
       </div>
     )
-
-    return createContent
   }
 
-  // Training Modules List View
+  // Redirect non-HOD guides to their dedicated pages
   if (hasMinRole(userRole, 'GUIDE') && !hasMinRole(userRole, 'HOD') && action === 'modules') {
     router.replace('/training/modules')
     return null
   }
-
-  // Tracks view — redirect non-HOD guides to their dedicated tracks page
   if (hasMinRole(userRole, 'GUIDE') && !hasMinRole(userRole, 'HOD') && action === 'tracks') {
     router.replace('/training/tracks')
     return null
   }
 
+  // Modules list (HoD)
   if (hasMinRole(userRole, 'GUIDE') && action === 'modules') {
     const isHodView = hasMinRole(userRole, 'HOD')
     const activeModules = modules.filter(m => !m.is_archived)
@@ -611,7 +555,7 @@ function DashboardContent() {
       : activeModules
     const uniqueTpas = Array.from(new Set(trainingTracks.filter(t => !t.is_archived).map(t => t.tpa_name)))
 
-    const modulesContent = (
+    return (
       <div className="min-h-screen bg-[#f8fafc] p-6">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8 flex items-start justify-between">
@@ -722,7 +666,6 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Archived modules panel */}
           {isHodView && showArchivedModules && (
             <div className="mt-6">
               <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
@@ -760,16 +703,13 @@ function DashboardContent() {
         </div>
       </div>
     )
-
-    return modulesContent
   }
 
-  // Park Badges (Training Tracks) CRUD View
+  // Park Badges CRUD View (HoD)
   if (hasMinRole(userRole, 'HOD') && action === 'tracks') {
-    const tracksContent = (
+    return (
       <div className="min-h-screen bg-[#f8fafc] p-6">
         <div className="max-w-6xl mx-auto">
-          {/* Toast */}
           {trackToast && (
             <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold text-white ${trackToast.ok ? 'bg-emerald-700' : 'bg-red-700'}`}>
               <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>{trackToast.ok ? 'check_circle' : 'error'}</span>
@@ -777,7 +717,6 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Modal */}
           {trackModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
@@ -790,7 +729,7 @@ function DashboardContent() {
                       value={trackForm.title}
                       onChange={e => setTrackForm(f => ({ ...f, title: e.target.value }))}
                       placeholder="e.g. Bako National Park Guide Badge"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] transition-all"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                   </div>
                   <div>
@@ -800,7 +739,7 @@ function DashboardContent() {
                       value={trackForm.tpa_name}
                       onChange={e => setTrackForm(f => ({ ...f, tpa_name: e.target.value }))}
                       placeholder="e.g. Bako National Park"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] transition-all"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                     <p className="text-[11px] text-gray-400 mt-1">Guides certified under this badge can only operate in this TPA.</p>
                   </div>
@@ -826,7 +765,7 @@ function DashboardContent() {
                 <div className="flex gap-3 justify-end mt-8">
                   <button onClick={() => setTrackModalOpen(false)} className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-all">Cancel</button>
                   <button onClick={handleSaveTrack} disabled={trackSaving}
-                    className="px-6 py-2.5 rounded-xl bg-[#012d1d] text-white text-sm font-semibold hover:bg-[#024a2f] transition-all disabled:opacity-50 flex items-center gap-2">
+                    className="px-6 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-[#024a2f] transition-all disabled:opacity-50 flex items-center gap-2">
                     {trackSaving && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
                     {editingTrack ? 'Save Changes' : 'Create Badge'}
                   </button>
@@ -835,7 +774,6 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-[#1B3A24] mb-1">Park Badges Tracking</h1>
@@ -854,7 +792,6 @@ function DashboardContent() {
             </div>
           </div>
 
-          {/* Active badges table */}
           {trainingTracks.filter(t => !t.is_archived).length === 0 ? (
             <div className="bg-white rounded-lg p-12 text-center shadow-sm">
               <div className="text-4xl mb-3">🏅</div>
@@ -900,7 +837,6 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Archived badges panel */}
           {showArchivedTracks && (
             <div className="mt-2">
               <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
@@ -937,11 +873,9 @@ function DashboardContent() {
         </div>
       </div>
     )
-
-    return tracksContent
   }
 
-  // Module History View (B1.5)
+  // Module History View
   if (hasMinRole(userRole, 'HOD') && action === 'module-history') {
     const CHANGE_BADGE: Record<string, { label: string; color: string }> = {
       create:   { label: 'Created',  color: 'bg-emerald-100 text-emerald-800' },
@@ -949,12 +883,12 @@ function DashboardContent() {
       rollback: { label: 'Rollback', color: 'bg-amber-100 text-amber-800' },
     }
 
-    const historyContent = (
+    return (
       <div className="min-h-screen bg-[#f8fafc] p-6">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-[#1B3A24] mb-1">Module Edit History</h1>
-            <p className="text-[#64748b]">Audit log of all training module changes — editor identity, timestamps, and version rollbacks.</p>
+            <p className="text-[#64748b]">Audit log of all training module changes.</p>
           </div>
 
           {historyLoading ? (
@@ -1014,28 +948,30 @@ function DashboardContent() {
         </div>
       </div>
     )
-
-    return historyContent
   }
 
-  // Applications View
+  // Applications View (HoD)
   if (hasMinRole(userRole, 'HOD') && action === 'applications') {
     const filteredApps = applications.filter(a => a.status === appTab);
-    const appCounts = {
-      PENDING: applications.filter(a => a.status === "PENDING").length,
-      APPROVED: applications.filter(a => a.status === "APPROVED").length,
-      REJECTED: applications.filter(a => a.status === "REJECTED").length,
+    const appCounts: Record<Application['status'], number> = {
+      PENDING:             applications.filter(a => a.status === "PENDING").length,
+      UNDER_REVIEW:        applications.filter(a => a.status === "UNDER_REVIEW").length,
+      INTERVIEW_SCHEDULED: applications.filter(a => a.status === "INTERVIEW_SCHEDULED").length,
+      APPROVED:            applications.filter(a => a.status === "APPROVED").length,
+      REJECTED:            applications.filter(a => a.status === "REJECTED").length,
     };
 
-    const TAB_CONFIG = {
-      PENDING:  { label: "Pending",  icon: "hourglass_top", color: "text-amber-700",  badge: "bg-amber-100 text-amber-800" },
-      APPROVED: { label: "Approved", icon: "verified",      color: "text-emerald-700",badge: "bg-emerald-100 text-emerald-800" },
-      REJECTED: { label: "Rejected", icon: "cancel",        color: "text-red-700",    badge: "bg-red-50 text-red-800" },
+    const TAB_CONFIG: Record<Application['status'], { label: string; icon: string; color: string; badge: string }> = {
+      PENDING:              { label: "Pending",   icon: "hourglass_top",   color: "text-amber-700",   badge: "bg-amber-100 text-amber-800" },
+      UNDER_REVIEW:         { label: "Reviewing", icon: "reviews",         color: "text-blue-700",    badge: "bg-blue-100 text-blue-800" },
+      INTERVIEW_SCHEDULED:  { label: "Interview", icon: "event_available", color: "text-indigo-700",  badge: "bg-indigo-100 text-indigo-800" },
+      APPROVED:             { label: "Approved",  icon: "verified",        color: "text-emerald-700", badge: "bg-emerald-100 text-emerald-800" },
+      REJECTED:             { label: "Rejected",  icon: "cancel",          color: "text-red-700",     badge: "bg-red-50 text-red-800" },
     };
 
     const formatDate = (iso: string) => new Date(iso).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
 
-    const applicationsContent = (
+    return (
       <div className="min-h-screen bg-[#f8fafc] p-6">
         <div className="max-w-5xl mx-auto">
           <div className="mb-8">
@@ -1043,7 +979,6 @@ function DashboardContent() {
             <p className="text-[#64748b]">Review, approve, or reject certification applications.</p>
           </div>
 
-          {/* Toast */}
           {appToast && (
             <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold text-white ${appToast.ok ? "bg-emerald-700" : "bg-red-700"}`}>
               <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>{appToast.ok ? "check_circle" : "error"}</span>
@@ -1062,7 +997,6 @@ function DashboardContent() {
             </div>
           </div>
 
-          {/* Tabs */}
           <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6">
             {(["PENDING","APPROVED","REJECTED"] as const).map(t => {
               const cfg = TAB_CONFIG[t];
@@ -1077,7 +1011,6 @@ function DashboardContent() {
             })}
           </div>
 
-          {/* Applications list */}
           {filteredApps.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center">
               <span className="material-symbols-outlined text-4xl text-gray-300 mb-3 block">inbox</span>
@@ -1090,7 +1023,7 @@ function DashboardContent() {
                 return (
                   <div key={app.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                     <div className="flex items-center gap-4 p-5">
-                      <div className="w-10 h-10 bg-[#012d1d] rounded-full flex items-center justify-center text-white font-black text-sm shrink-0">
+                      <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-black text-sm shrink-0">
                         {app.full_name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1116,7 +1049,7 @@ function DashboardContent() {
                         </div>
                       </div>
                       <button onClick={() => setExpandedApp(isOpen ? null : app.id)}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#012d1d] transition-colors shrink-0 px-3 py-2 rounded-lg hover:bg-gray-50">
+                        className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-primary transition-colors shrink-0 px-3 py-2 rounded-lg hover:bg-gray-50">
                         {isOpen ? "Collapse" : "Review"}
                         <span className="material-symbols-outlined text-base">{isOpen ? "expand_less" : "expand_more"}</span>
                       </button>
@@ -1153,7 +1086,7 @@ function DashboardContent() {
                           </div>
                         )}
 
-                        {app.status === "PENDING" && (
+                        {(app.status === "PENDING" || app.status === "UNDER_REVIEW" || app.status === "INTERVIEW_SCHEDULED") && (
                           <div className="space-y-3 pt-1">
                             <div>
                               <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1.5">
@@ -1164,9 +1097,23 @@ function DashboardContent() {
                                 value={appNotes[app.id] ?? ""}
                                 onChange={e => setAppNotes(prev => ({ ...prev, [app.id]: e.target.value }))}
                                 placeholder="Optional for approval. Required if rejecting — explain the reason clearly."
-                                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none outline-none focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] transition-all"
+                                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                               />
                             </div>
+
+                            <InterviewScheduler
+                              applicationId={app.id}
+                              existing={{
+                                date:     app.interview_date,
+                                time:     app.interview_time,
+                                location: app.interview_location,
+                              }}
+                              onScheduled={async () => {
+                                showAppToast("Interview scheduled and applicant notified.", true)
+                                setExpandedApp(null)
+                                await loadApplicationsData()
+                              }}
+                            />
 
                             <div className="flex gap-3 justify-end">
                               <button onClick={() => handleRejectApplication(app.id)} disabled={processingApp === app.id}
@@ -1175,7 +1122,7 @@ function DashboardContent() {
                                 Reject
                               </button>
                               <button onClick={() => handleApproveApplication(app.id)} disabled={processingApp === app.id}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#012d1d] text-white font-semibold text-sm hover:bg-[#024a2f] transition-all disabled:opacity-50">
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-white font-semibold text-sm hover:bg-[#024a2f] transition-all disabled:opacity-50">
                                 {processingApp === app.id ? <span className="material-symbols-outlined animate-spin text-base">progress_activity</span> : <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>}
                                 Approve & Upgrade Role
                               </button>
@@ -1192,149 +1139,35 @@ function DashboardContent() {
         </div>
       </div>
     );
-
-    return applicationsContent
   }
+
+  const widgetMode: 'hod' | 'guide' = hasMinRole(userRole, 'HOD') ? 'hod' : 'guide'
+  const heading = hasMinRole(userRole, 'HOD')
+    ? 'Training Progress — All Guides'
+    : 'My Training Progress'
+  const subheading = hasMinRole(userRole, 'HOD')
+    ? 'Live snapshot of guide enrollments and completion rates across all parks.'
+    : 'Your active park badges and module completion at a glance.'
 
   return (
     <>
+      <section className="p-6 lg:p-8 space-y-6">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-black text-[#1B3A24]">{heading}</h1>
+          <p className="text-sm text-[#64748b] mt-1">{subheading}</p>
+        </div>
 
-        <section className="p-8 space-y-8">
-          {/* Stats grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {STATS.map(({ label, value, badge, color, valueColor, badgeColor }) => (
-              <div key={label} className={`bg-surface-container-low p-6 rounded-xl space-y-2 border-l-4 ${color}`}>
-                <p className="text-on-surface-variant uppercase text-[0.6875rem] font-bold tracking-widest">{label}</p>
-                <div className="flex items-end justify-between">
-                  <span className={`text-3xl font-black ${valueColor}`}>{value}</span>
-                  <span className={`text-xs font-bold ${badgeColor}`}>{badge}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+        <TrainingProgressWidget mode={widgetMode} />
+      </section>
 
-          {/* Bento grid */}
-          <div className="grid grid-cols-12 gap-8 items-start">
-            {/* Main feed */}
-            <div className="col-span-12 lg:col-span-8 space-y-8">
-              <div className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-                <div className="relative h-64 overflow-hidden">
-                  <div
-                    className="w-full h-full bg-cover bg-center"
-                    style={{
-                      backgroundImage: "url('https://images.unsplash.com/photo-1448375240586-882707db888b?w=1200&q=80')",
-                      backgroundBlendMode: "color-burn",
-                      backgroundColor: "rgba(1,45,29,0.2)",
-                    }}
-                  />
-                  <div className="absolute inset-0 p-8 flex flex-col justify-end bg-gradient-to-t from-primary/80 to-transparent">
-                    <h2 className="text-white text-3xl font-bold tracking-tight">Zone Alpha Surveillance</h2>
-                    <p className="text-emerald-100/80 max-w-md text-sm">Real-time biodiversity monitoring and training track integration for Bako National Park.</p>
-                  </div>
-                  <div className="absolute top-6 right-6 flex gap-2">
-                    <span className="bg-primary/40 backdrop-blur-md text-white text-[0.625rem] px-3 py-1 rounded-full uppercase tracking-tighter border border-white/20">Live GPS Active</span>
-                    <span className="bg-[#DC2E27]/40 backdrop-blur-md text-white text-[0.625rem] px-3 py-1 rounded-full uppercase tracking-tighter border border-white/20">AI Detection On</span>
-                  </div>
-                </div>
-
-                <div className="p-8">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-primary">Training Alerts &amp; Incidents</h3>
-                    {can(userRole, "view:own-guides") && (
-                      <button className="text-primary text-sm font-bold flex items-center gap-2 hover:underline">
-                        View Full Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="space-y-4">
-                    {FEED_ITEMS.map((item) => (
-                      <div key={item.id} className="flex items-center gap-6 p-4 bg-surface-container-low rounded-xl group hover:bg-surface-container-high transition-all">
-                        <div className={`h-12 w-12 rounded-full ${item.iconBg} flex items-center justify-center ${item.iconColor} shrink-0`}>
-                          <span className="material-symbols-outlined" style={item.fill ? { fontVariationSettings: "'FILL' 1" } : undefined}>
-                            {item.icon}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start">
-                            <h4 className="font-bold text-primary text-sm">{item.title}</h4>
-                            <span className="text-[0.625rem] text-on-surface-variant font-medium shrink-0 ml-2">{item.time}</span>
-                          </div>
-                          <p className="text-sm text-secondary mt-0.5">{item.body}</p>
-                        </div>
-                        {/* A2.4 — Action buttons only for SENIOR_GUIDE+ */}
-                        {can(userRole, "mentor:guides") && (
-                          <button className="bg-primary text-white text-xs px-4 py-2 rounded-lg font-bold opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                            {item.action}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right sidebar widgets */}
-            <div className="col-span-12 lg:col-span-4 space-y-8">
-              {/* Active patrols */}
-              <div className="bg-surface-container-lowest p-6 rounded-xl shadow-[0_20px_40px_rgba(25,28,29,0.06)] space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-bold text-primary">Active Patrols</h3>
-                  <span className="text-[0.625rem] text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-bold uppercase">12 Teams Out</span>
-                </div>
-                <div className="aspect-square rounded-xl overflow-hidden relative border border-outline-variant/15 bg-primary-container/20">
-                  <div className="absolute inset-0 bg-primary/20" />
-                  <div className="absolute top-4 left-4 flex flex-col gap-1">
-                    <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-lg shadow-sm flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-[#DC2E27] animate-ping" />
-                      <span className="text-[0.5rem] font-bold text-primary uppercase">POI 02: Alert</span>
-                    </div>
-                    <div className="bg-emerald-950/90 backdrop-blur-sm p-1.5 rounded-lg shadow-sm flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span className="text-[0.5rem] font-bold text-white uppercase">Team Alpha: Active</span>
-                    </div>
-                  </div>
-                  <div className="absolute bottom-4 right-4 text-[10px] text-emerald-400/80 font-mono tracking-tighter leading-none text-right">
-                    LAT: 1.5533° N<br />LON: 110.3592° E<br />ALT: 42M
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {PATROL_MEMBERS.map(({ name, track, progress }) => (
-                    <div key={name} className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-primary text-xl">person</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-primary truncate">{name}</p>
-                        <p className="text-[10px] text-secondary">{track}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[10px] font-mono text-emerald-700">Patrolling</p>
-                        <div className="h-1 w-12 bg-emerald-200 rounded-full mt-1">
-                          <div className="h-1 bg-emerald-500 rounded-full" style={{ width: `${progress}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-
-            </div>
-          </div>
-        </section>
-
-        <footer className="w-full py-8 mt-auto bg-emerald-950 flex flex-col md:flex-row justify-between items-center px-12 gap-4">
-          <div className="text-sm font-bold text-white">Digital Sentinel <span className="font-normal opacity-50 ml-2">Guardian Portal</span></div>
-          <div className="flex flex-wrap justify-center gap-6">
-            {["Accessibility", "Privacy Policy", "Institutional Links", "Contact Sentinel"].map((l) => (
-              <a key={l} href="#" className="text-xs font-light tracking-wide text-emerald-100 opacity-70 hover:opacity-100 hover:text-[#DC2E27] transition-all">{l}</a>
-            ))}
-          </div>
-          <p className="text-xs font-light tracking-wide text-emerald-100 opacity-50">© 2024 Sarawak Forestry Corporation. All rights reserved.</p>
-        </footer>
+      <footer className="w-full py-6 mt-auto bg-emerald-950 flex flex-col md:flex-row justify-between items-center px-6 lg:px-12 gap-4">
+        <div className="text-sm font-bold text-white">
+          Digital Sentinel <span className="font-normal opacity-50 ml-2">Guardian Portal</span>
+        </div>
+        <p className="text-xs font-light tracking-wide text-emerald-100 opacity-50">
+          © 2026 Sarawak Forestry Corporation. All rights reserved.
+        </p>
+      </footer>
     </>
   );
 }
@@ -1349,4 +1182,86 @@ export default function DashboardPage() {
       <DashboardContent />
     </Suspense>
   );
+}
+
+function InterviewScheduler({
+  applicationId,
+  existing,
+  onScheduled,
+}: {
+  applicationId: string
+  existing: { date: string | null; time: string | null; location: string | null }
+  onScheduled: () => void | Promise<void>
+}) {
+  const [open, setOpen]     = useState(!!existing.date)  
+  const [date, setDate]     = useState(existing.date ?? "")
+  const [time, setTime]     = useState(existing.time?.slice(0, 5) ?? "")
+  const [loc,  setLoc]      = useState(existing.location ?? "")
+  const [saving, setSaving] = useState(false)
+  const [err, setErr]       = useState<string | null>(null)
+
+  async function submit() {
+    setErr(null); setSaving(true)
+    try {
+      const res = await fetch(`/api/applications/${applicationId}/schedule-interview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time, location: loc }),
+      })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error ?? "Failed to schedule")
+      await onScheduled()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to schedule")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        className="w-full text-left px-4 py-2.5 border-2 border-dashed border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-50 transition-all flex items-center gap-2">
+        <span className="material-symbols-outlined text-base">event</span>
+        Schedule Interview Instead
+      </button>
+    )
+  }
+
+  return (
+    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-widest text-indigo-900 flex items-center gap-1">
+          <span className="material-symbols-outlined text-base">event</span>
+          {existing.date ? "Reschedule Interview" : "Schedule Interview"}
+        </p>
+        <button onClick={() => setOpen(false)} className="text-indigo-700 hover:bg-white/60 rounded p-1">
+          <span className="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Date</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Time</label>
+          <input type="time" value={time} onChange={e => setTime(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Location</label>
+        <input type="text" value={loc} onChange={e => setLoc(e.target.value)}
+          placeholder="e.g. SFC HQ Kuching — Meeting Room 3"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+      </div>
+      {err && <p className="text-xs text-red-700">{err}</p>}
+      <button onClick={submit} disabled={saving || !date || !time || !loc.trim()}
+        className="w-full px-4 py-2 rounded-lg bg-indigo-700 text-white font-semibold text-sm hover:bg-indigo-800 transition-all disabled:opacity-50">
+        {saving ? "Scheduling…" : existing.date ? "Update Interview" : "Confirm & Notify Applicant"}
+      </button>
+    </div>
+  )
 }

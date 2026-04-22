@@ -22,10 +22,10 @@ type Track = {
 
 type ExistingApp = {
   id: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
+  status: "PENDING" | "UNDER_REVIEW" | "INTERVIEW_SCHEDULED" | "APPROVED" | "REJECTED";
 };
 
-const STEPS = ["Personal Details", "Park & Track", "Your Background", "Review"];
+const STEPS = ["Personal Details", "Park & Track", "Your Background", "Documents", "Review"];
 
 export default function ApplyGuidePage() {
   const router = useRouter();
@@ -48,6 +48,8 @@ export default function ApplyGuidePage() {
   const [trackId,     setTrackId]     = useState("");
   const [motivation,  setMotivation]  = useState("");
   const [experience,  setExperience]  = useState("");
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
 
   useEffect(() => {
     async function init() {
@@ -83,39 +85,85 @@ export default function ApplyGuidePage() {
   const tpaOptions = [...new Set(tracks.map((t) => t.tpa_name))].sort();
   const tracksForTpa = tracks.filter((t) => t.tpa_name === tpaName);
 
+  function handleFilesPicked(list: FileList | null) {
+    if (!list) return;
+    const MAX = 5;
+    const next = [...stagedFiles];
+    for (const f of Array.from(list)) {
+      if (next.length >= MAX) break;
+      if (f.size > 10 * 1024 * 1024) {
+        showToast(`${f.name} exceeds 10 MB`, "error");
+        continue;
+      }
+      next.push(f);
+    }
+    setStagedFiles(next);
+  }
+
+  function removeStaged(idx: number) {
+    setStagedFiles(stagedFiles.filter((_, i) => i !== idx));
+  }
+
   async function handleSubmit() {
     setSubmitting(true); setError(null);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login?next=/apply-guide"); return; }
 
-    const { error } = await supabase.from("guide_applications").insert({
-      applicant_id: user.id,
-      full_name:    fullName.trim(),
-      email:        email.trim(),
-      phone:        phone.trim() || null,
-      tpa_name:     tpaName,
-      track_id:     trackId || null,
-      motivation:   motivation.trim(),
-      experience:   experience.trim(),
-    });
+    const { data: inserted, error: insErr } = await supabase
+      .from("guide_applications")
+      .insert({
+        applicant_id: user.id,
+        full_name:    fullName.trim(),
+        email:        email.trim(),
+        phone:        phone.trim() || null,
+        tpa_name:     tpaName,
+        track_id:     trackId || null,
+        motivation:   motivation.trim(),
+        experience:   experience.trim(),
+      })
+      .select("id")
+      .single();
+
+    if (insErr || !inserted) {
+      setSubmitting(false);
+      setError(insErr?.message ?? "Failed to submit");
+      return;
+    }
+
+    for (let i = 0; i < stagedFiles.length; i++) {
+      const f = stagedFiles[i];
+      setUploadProgress(`Uploading ${i + 1}/${stagedFiles.length}: ${f.name}`);
+      const form = new FormData();
+      form.append("file", f);
+      const res = await fetch(`/api/applications/${inserted.id}/documents`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setSubmitting(false);
+        setUploadProgress("");
+        setError(`Upload failed for ${f.name}: ${body.error ?? res.statusText}`);
+        return;
+      }
+    }
 
     setSubmitting(false);
-    if (error) { setError(error.message); return; }
+    setUploadProgress("");
     showToast("Application submitted successfully!", "success");
-    setTimeout(() => router.push("/apply-guide/status"), 1000);
+    setTimeout(() => router.push("/apply-guide/status"), 800);
   }
 
   function canNext() {
     if (step === 0) return fullName.trim().length > 0 && email.trim().length > 0;
     if (step === 1) return tpaName.length > 0;
     if (step === 2) return motivation.trim().length >= 50 && experience.trim().length >= 20;
+    if (step === 3) return true;  // docs are optional
     return true;
   }
 
-  // ── Loading ────────────────────────────────────────────────────
   if (loading) return <PageLoader message="Loading application…" />;
 
-  // ── Already a guide ────────────────────────────────────────────
   if (alreadyGuide) {
     return (
       <Shell>
@@ -124,9 +172,9 @@ export default function ApplyGuidePage() {
             <span className="material-symbols-outlined text-emerald-700 text-3xl"
               style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">You're already a certified guide</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">You&apos;re already a certified guide</h2>
           <p className="text-gray-500 text-sm mb-6">Your account already has Guide access or higher.</p>
-          <Link href="/dashboard" className="inline-flex items-center gap-2 bg-[#012d1d] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#024a2f] transition-colors">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#024a2f] transition-colors">
             Go to Dashboard
           </Link>
         </div>
@@ -134,35 +182,15 @@ export default function ApplyGuidePage() {
     );
   }
 
-  // ── Existing application ───────────────────────────────────────
   if (existingApp) {
-    const isPending  = existingApp.status === "PENDING";
-    const isApproved = existingApp.status === "APPROVED";
-    const isRejected = existingApp.status === "REJECTED";
+    // Redirect to status page — it now handles all 5 statuses
     return (
       <Shell>
         <div className="text-center py-16">
-          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5
-            ${isPending ? "bg-amber-100" : isApproved ? "bg-emerald-100" : "bg-red-100"}`}>
-            <span className={`material-symbols-outlined text-3xl
-              ${isPending ? "text-amber-700" : isApproved ? "text-emerald-700" : "text-red-700"}`}
-              style={{ fontVariationSettings: "'FILL' 1" }}>
-              {isPending ? "hourglass_top" : isApproved ? "verified" : "cancel"}
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            {isPending  ? "Application Under Review"    : ""}
-            {isApproved ? "Application Approved!"       : ""}
-            {isRejected ? "Application Not Successful"  : ""}
-          </h2>
-          <p className="text-gray-500 text-sm mb-6">
-            {isPending  ? "Your application has been submitted and is being reviewed by the HoD."         : ""}
-            {isApproved ? "Congratulations! You now have Guide access."                                    : ""}
-            {isRejected ? "Your application was not approved. You may view the reviewer's feedback below." : ""}
-          </p>
+          <p className="text-sm text-gray-600 mb-6">You already have an application on file.</p>
           <Link href="/apply-guide/status"
-            className="inline-flex items-center gap-2 bg-[#012d1d] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#024a2f] transition-colors">
-            View Full Status
+            className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#024a2f] transition-colors">
+            View Application Status
             <span className="material-symbols-outlined text-base">arrow_forward</span>
           </Link>
         </div>
@@ -170,98 +198,73 @@ export default function ApplyGuidePage() {
     );
   }
 
-  // ── Multi-step form ────────────────────────────────────────────
   return (
     <>
-    {toastEl}
-    <Shell>
-      {/* Progress */}
-      <div className="mb-8">
-        <div className="flex items-center gap-0 mb-4">
-          {STEPS.map((s, i) => (
-            <div key={s} className="flex items-center flex-1 last:flex-none">
-              <div className={`flex items-center gap-2 ${i <= step ? "text-[#012d1d]" : "text-gray-400"}`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all
-                  ${i < step  ? "bg-[#012d1d] border-[#012d1d] text-white"
-                  : i === step ? "border-[#012d1d] text-[#012d1d]"
-                  :              "border-gray-300 text-gray-400"}`}>
-                  {i < step
-                    ? <span className="material-symbols-outlined text-sm">check</span>
-                    : i + 1}
-                </div>
-                <span className="text-xs font-semibold hidden sm:block">{s}</span>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-2 ${i < step ? "bg-[#012d1d]" : "bg-gray-200"}`} />
-              )}
+      {toastEl}
+      <Shell>
+        {/* Progress indicator */}
+        <div className="mb-6 flex items-center gap-2">
+          {STEPS.map((label, idx) => (
+            <div key={label} className="flex-1">
+              <div className={`h-1 rounded-full transition-colors ${idx <= step ? "bg-primary" : "bg-gray-200"}`} />
+              <p className={`text-[10px] font-bold uppercase tracking-widest mt-1.5 ${
+                idx === step ? "text-primary" : idx < step ? "text-gray-500" : "text-gray-300"
+              }`}>
+                Step {idx + 1}: {label}
+              </p>
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Error */}
-      {error && (
-        <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-xl px-4 py-3 text-sm font-medium">
-          <span className="material-symbols-outlined text-base mt-0.5">error</span>
-          {error}
-        </div>
-      )}
-
-      {/* ── Step 0: Personal Details ── */}
-      {step === 0 && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Personal Details</h2>
-            <p className="text-sm text-gray-500">Confirm your details as they will appear on your application.</p>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {error}
           </div>
-          <Field label="Full Name" required>
-            <input type="text" value={fullName}
-              onChange={e => setFullName(stripSpecialChars(e.target.value))}
-              placeholder="As per NRIC" className={INPUT} />
-            {hasSpecialChars(fullName) && <SpecialCharWarning />}
-          </Field>
-          <Field label="Email Address" required>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="your@email.com" className={INPUT} />
-          </Field>
-          <Field label="Phone Number" hint="Optional">
-            <input type="tel" value={phone}
-              onChange={e => setPhone(stripSpecialChars(e.target.value))}
-              placeholder="+60 12-xxx xxxx" className={INPUT} />
-            {hasSpecialChars(phone) && <SpecialCharWarning />}
-          </Field>
-        </div>
-      )}
+        )}
 
-      {/* ── Step 1: Park & Track ── */}
-      {step === 1 && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Park & Training Track</h2>
-            <p className="text-sm text-gray-500">Each badge is park-specific and non-transferable between parks.</p>
+        {/* Step 0 — Personal Details */}
+        {step === 0 && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Personal Details</h2>
+              <p className="text-sm text-gray-500">Let&apos;s start with your basics.</p>
+            </div>
+            <Field label="Full Name" required>
+              <input value={fullName} onChange={e => setFullName(stripSpecialChars(e.target.value))} className={INPUT} />
+              {hasSpecialChars(fullName) && <SpecialCharWarning />}
+            </Field>
+            <Field label="Email" required>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={INPUT} />
+            </Field>
+            <Field label="Phone">
+              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+60 …" className={INPUT} />
+            </Field>
           </div>
-          <Field label="Totally Protected Area (TPA)" required>
-            <select value={tpaName} onChange={e => { setTpaName(e.target.value); setTrackId(""); }}
-              className={SELECT}>
-              <option value="">Select a park…</option>
-              {tpaOptions.map(t => <option key={t} value={t}>{t}</option>)}
-              {tpaOptions.length === 0 && <option value="Bako National Park">Bako National Park</option>}
-            </select>
-          </Field>
-          {tpaName && (
-            <Field label="Preferred Training Track" hint="Optional — skip if unsure">
-              {tracksForTpa.length === 0 ? (
-                <p className="text-sm text-gray-500 italic py-2">No open tracks for this TPA yet. You may still apply.</p>
-              ) : (
+        )}
+
+        {/* Step 1 — Park & Track */}
+        {step === 1 && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Park &amp; Track</h2>
+              <p className="text-sm text-gray-500">Which TPA do you want to serve?</p>
+            </div>
+            <Field label="Totally Protected Area" required>
+              <select value={tpaName} onChange={e => { setTpaName(e.target.value); setTrackId(""); }} className={SELECT}>
+                <option value="">— Select a park —</option>
+                {tpaOptions.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </Field>
+            {tpaName && (
+              <Field label="Preferred Certification Track">
                 <div className="space-y-2">
                   {tracksForTpa.map(track => (
-                    <label key={track.id}
-                      className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
-                        ${trackId === track.id ? "border-[#012d1d] bg-green-50" : "border-gray-200 hover:border-gray-300"}`}>
+                    <label key={track.id} className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
+                      ${trackId === track.id ? "border-primary bg-green-50" : "border-gray-200 hover:border-gray-300"}`}>
                       <input type="radio" name="track" value={track.id}
                         checked={trackId === track.id}
                         onChange={() => setTrackId(track.id)}
-                        className="mt-1 accent-[#012d1d]" />
+                        className="mt-1 accent-primary" />
                       <div>
                         <p className="font-semibold text-sm text-gray-900">{track.title}</p>
                         <p className="text-xs text-gray-500 mt-0.5">{track.duration_weeks} weeks · {track.eligibility}</p>
@@ -269,123 +272,173 @@ export default function ApplyGuidePage() {
                     </label>
                   ))}
                   <label className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
-                    ${trackId === "" ? "border-[#012d1d] bg-green-50" : "border-gray-200 hover:border-gray-300"}`}>
+                    ${trackId === "" ? "border-primary bg-green-50" : "border-gray-200 hover:border-gray-300"}`}>
                     <input type="radio" name="track" value=""
                       checked={trackId === ""}
                       onChange={() => setTrackId("")}
-                      className="mt-1 accent-[#012d1d]" />
+                      className="mt-1 accent-primary" />
                     <div>
                       <p className="font-semibold text-sm text-gray-900">Undecided</p>
-                      <p className="text-xs text-gray-500 mt-0.5">I'll discuss track selection with the HoD.</p>
+                      <p className="text-xs text-gray-500 mt-0.5">I&apos;ll discuss track selection with the HoD.</p>
                     </div>
                   </label>
                 </div>
-              )}
+              </Field>
+            )}
+          </div>
+        )}
+
+        {/* Step 2 — Background */}
+        {step === 2 && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Your Background</h2>
+              <p className="text-sm text-gray-500">Help the HoD understand why you&apos;re a good fit.</p>
+            </div>
+            <Field label="Motivation" required hint={`${motivation.length} chars — min 50`}>
+              <textarea value={motivation}
+                onChange={e => setMotivation(stripSpecialChars(e.target.value))} rows={5}
+                placeholder="Why do you want to become a certified guide for this park?"
+                className={`${INPUT} resize-none`} />
+              {hasSpecialChars(motivation) && <SpecialCharWarning />}
             </Field>
+            <Field label="Prior Experience" required hint={`${experience.length} chars — min 20`}>
+              <textarea value={experience}
+                onChange={e => setExperience(stripSpecialChars(e.target.value))} rows={4}
+                placeholder="Describe any relevant experience — forestry, ecology, tourism, guiding, etc."
+                className={`${INPUT} resize-none`} />
+              {hasSpecialChars(experience) && <SpecialCharWarning />}
+            </Field>
+          </div>
+        )}
+
+        {/* Step 3 — Documents (Task 6) */}
+        {step === 3 && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Supporting Documents</h2>
+              <p className="text-sm text-gray-500">
+                Attach up to 5 files (10 MB each). Optional — but recommended if you hold relevant
+                certifications (first aid, ecology, tour guide licence, etc.).
+              </p>
+              <p className="text-[11px] text-amber-700 mt-2">
+                ⓘ Documents are retained for 30 days after your application is reviewed, then automatically deleted.
+              </p>
+            </div>
+
+            <label className="block border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors">
+              <span className="material-symbols-outlined text-3xl text-gray-400 mb-2 block">upload_file</span>
+              <p className="text-sm font-semibold text-gray-700">Click to select files</p>
+              <p className="text-xs text-gray-400 mt-1">PDF, JPG, PNG, WebP, DOC, DOCX · max 10 MB each</p>
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,application/pdf,image/*"
+                className="hidden"
+                onChange={e => handleFilesPicked(e.target.files)}
+              />
+            </label>
+
+            {stagedFiles.length > 0 && (
+              <div className="space-y-2">
+                {stagedFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <span className="material-symbols-outlined text-gray-500">description</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
+                      <p className="text-[11px] text-gray-500">{(f.size / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <button onClick={() => removeStaged(i)}
+                      className="text-red-600 hover:bg-red-50 w-8 h-8 rounded-full flex items-center justify-center">
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 4 — Review */}
+        {step === 4 && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 mb-1">Review &amp; Submit</h2>
+              <p className="text-sm text-gray-500">The HoD will be notified once you submit.</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl border border-gray-200 divide-y divide-gray-200">
+              {[
+                { label: "Full Name", value: fullName },
+                { label: "Email",     value: email },
+                { label: "Phone",     value: phone || "—" },
+                { label: "TPA",       value: tpaName },
+                { label: "Track",     value: tracks.find(t => t.id === trackId)?.title || "Undecided" },
+                { label: "Documents", value: `${stagedFiles.length} file${stagedFiles.length === 1 ? "" : "s"}` },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex gap-4 px-5 py-3">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-widest w-28 shrink-0 mt-0.5">{label}</span>
+                  <span className="text-sm text-gray-900 font-medium">{value}</span>
+                </div>
+              ))}
+              <div className="px-5 py-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-1">Motivation</span>
+                <p className="text-sm text-gray-900 leading-relaxed">{motivation}</p>
+              </div>
+              <div className="px-5 py-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-1">Experience</span>
+                <p className="text-sm text-gray-900 leading-relaxed">{experience}</p>
+              </div>
+            </div>
+
+            {uploadProgress && (
+              <p className="text-sm text-gray-600 flex items-center gap-2">
+                <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
+                {uploadProgress}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+          {step > 0 ? (
+            <button onClick={() => setStep(s => s - 1)} disabled={submitting}
+              className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-40">
+              <span className="material-symbols-outlined text-base">arrow_back</span>
+              Back
+            </button>
+          ) : (
+            <Link href="/" className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors">
+              <span className="material-symbols-outlined text-base">arrow_back</span>
+              Cancel
+            </Link>
+          )}
+
+          {step < STEPS.length - 1 ? (
+            <button onClick={() => setStep(s => s + 1)} disabled={!canNext()}
+              className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#024a2f] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              Continue
+              <span className="material-symbols-outlined text-base">arrow_forward</span>
+            </button>
+          ) : (
+            <button onClick={handleSubmit} disabled={submitting}
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#024a2f] transition-colors disabled:opacity-60">
+              {submitting
+                ? <><span className="material-symbols-outlined animate-spin text-base">progress_activity</span> Submitting…</>
+                : <><span className="material-symbols-outlined text-base">send</span> Submit Application</>
+              }
+            </button>
           )}
         </div>
-      )}
-
-      {/* ── Step 2: Background ── */}
-      {step === 2 && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Your Background</h2>
-            <p className="text-sm text-gray-500">Help the HoD understand why you're a good fit.</p>
-          </div>
-          <Field label="Motivation" required hint={`${motivation.length} chars — min 50`}>
-            <textarea value={motivation}
-              onChange={e => setMotivation(stripSpecialChars(e.target.value))} rows={5}
-              placeholder="Why do you want to become a certified guide for this park? What draws you to this role?"
-              className={`${INPUT} resize-none`} />
-            {hasSpecialChars(motivation) && <SpecialCharWarning />}
-          </Field>
-          <Field label="Prior Experience" required hint={`${experience.length} chars — min 20`}>
-            <textarea value={experience}
-              onChange={e => setExperience(stripSpecialChars(e.target.value))} rows={4}
-              placeholder="Describe any relevant experience — forestry, ecology, tourism, guiding, conservation, etc."
-              className={`${INPUT} resize-none`} />
-            {hasSpecialChars(experience) && <SpecialCharWarning />}
-          </Field>
-        </div>
-      )}
-
-      {/* ── Step 3: Review ── */}
-      {step === 3 && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-1">Review & Submit</h2>
-            <p className="text-sm text-gray-500">Review your application before submitting. The HoD will be notified.</p>
-          </div>
-          <div className="bg-gray-50 rounded-xl border border-gray-200 divide-y divide-gray-200">
-            {[
-              { label: "Full Name",   value: fullName },
-              { label: "Email",       value: email },
-              { label: "Phone",       value: phone || "—" },
-              { label: "TPA",         value: tpaName },
-              { label: "Track",       value: tracks.find(t => t.id === trackId)?.title || "Undecided" },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex gap-4 px-5 py-3">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest w-28 shrink-0 mt-0.5">{label}</span>
-                <span className="text-sm text-gray-900 font-medium">{value}</span>
-              </div>
-            ))}
-            <div className="px-5 py-3">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-1">Motivation</span>
-              <p className="text-sm text-gray-900 leading-relaxed">{motivation}</p>
-            </div>
-            <div className="px-5 py-3">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-1">Experience</span>
-              <p className="text-sm text-gray-900 leading-relaxed">{experience}</p>
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 leading-relaxed">
-            By submitting, you confirm all information is accurate. The HoD will review your application
-            and you'll be notified of the outcome via the platform.
-          </p>
-        </div>
-      )}
-
-      {/* Navigation */}
-      <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
-        {step > 0 ? (
-          <button onClick={() => setStep(s => s - 1)}
-            className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors">
-            <span className="material-symbols-outlined text-base">arrow_back</span>
-            Back
-          </button>
-        ) : (
-          <Link href="/" className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors">
-            <span className="material-symbols-outlined text-base">arrow_back</span>
-            Cancel
-          </Link>
-        )}
-
-        {step < STEPS.length - 1 ? (
-          <button onClick={() => setStep(s => s + 1)} disabled={!canNext()}
-            className="flex items-center gap-2 bg-[#012d1d] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#024a2f] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            Continue
-            <span className="material-symbols-outlined text-base">arrow_forward</span>
-          </button>
-        ) : (
-          <button onClick={handleSubmit} disabled={submitting}
-            className="flex items-center gap-2 bg-[#012d1d] text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#024a2f] transition-colors disabled:opacity-60">
-            {submitting
-              ? <><span className="material-symbols-outlined animate-spin text-base">progress_activity</span> Submitting…</>
-              : <><span className="material-symbols-outlined text-base">send</span> Submit Application</>
-            }
-          </button>
-        )}
-      </div>
-    </Shell>
+      </Shell>
     </>
   );
 }
 
 // ── Shared sub-components ──────────────────────────────────────────
 
-const INPUT = "w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm font-medium placeholder:text-gray-400 focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] outline-none transition-all";
-const SELECT = "w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm font-medium focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] outline-none transition-all cursor-pointer";
+const INPUT = "w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm font-medium placeholder:text-gray-400 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all";
+const SELECT = "w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer";
 
 function SpecialCharWarning() {
   return (
@@ -418,9 +471,8 @@ function Shell({ children }: { children: React.ReactNode }) {
       <TopNavClient />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
-        {/* Page title */}
         <div className="flex items-center gap-4 mb-8">
-          <div className="w-12 h-12 bg-[#012d1d] rounded-xl flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-white text-2xl">hiking</span>
           </div>
           <div>

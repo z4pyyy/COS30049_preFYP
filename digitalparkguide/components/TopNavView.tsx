@@ -1,6 +1,3 @@
-// Pure presentational top nav — no data-fetching.
-// Used directly by client components (e.g. dashboard) that already know user/role.
-// Server component `TopNav` wraps this after fetching auth.
 "use client";
 
 import Link from "next/link";
@@ -15,15 +12,15 @@ export interface TopNavViewProps {
   name?: string;
   email?: string;
   role: AppRole | null;
-  /** Optional context label shown under the brand (e.g. "Superadmin Console"). */
   context?: string;
 }
 
 function dashboardHref(role: AppRole | null): string {
   switch (role) {
-    case "SUPERADMIN": return "/admin";
-    case "HOD":        return "/dashboard/hod";
-    default:           return "/dashboard";
+    case "SUPERADMIN":   return "/admin";
+    case "HOD":          return "/dashboard/hod";
+    case "SENIOR_GUIDE": return "/dashboard";
+    default:             return "/dashboard";
   }
 }
 
@@ -41,7 +38,7 @@ export default function TopNavView({ active, authed, name, email, role, context 
   return (
     <>
       {/* Gov-style top strip — flush to screen edges */}
-      <div className="bg-[#012d1d] text-white text-[11px] py-1.5 px-4 sm:px-6 lg:px-8">
+      <div className="bg-primary text-white text-[11px] py-1.5 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <span className="opacity-60">Portal Rasmi | Sarawak Forestry Corporation</span>
           <div className="flex items-center gap-4 opacity-60">
@@ -52,20 +49,20 @@ export default function TopNavView({ active, authed, name, email, role, context 
         </div>
       </div>
 
-      {/* Main navbar — flush to screen edges */}
+      {/* Main navbar */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-4">
-            {/* Brand */}
-            <Link href="/" className="flex items-center gap-3 shrink-0">
-              <div className="w-9 h-9 rounded-lg bg-[#012d1d] flex items-center justify-center">
+            {/* Brand + role context */}
+            <Link href="/" className="flex items-center gap-3 shrink-0 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shrink-0">
                 <span className="text-white text-lg">🌿</span>
               </div>
-              <div className="leading-tight">
-                <div className="text-sm font-extrabold text-[#012d1d] tracking-tight">Digital Sentinel</div>
+              <div className="leading-tight min-w-0">
+                <div className="text-sm font-extrabold text-primary tracking-tight">Digital Sentinel</div>
                 <div className="text-[10px] text-gray-500 font-medium">Sarawak Forestry Corporation</div>
                 {context && (
-                  <div className="text-[10px] font-bold text-[#012d1d] uppercase tracking-widest mt-0.5">
+                  <div className="text-[10px] font-bold text-primary uppercase tracking-widest mt-0.5 truncate max-w-56">
                     {context}
                   </div>
                 )}
@@ -82,8 +79,8 @@ export default function TopNavView({ active, authed, name, email, role, context 
                     href={href}
                     className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       isActive
-                        ? "text-[#012d1d] bg-gray-100"
-                        : "text-gray-600 hover:text-[#012d1d] hover:bg-gray-50"
+                        ? "text-primary bg-gray-100"
+                        : "text-gray-600 hover:text-primary hover:bg-gray-50"
                     }`}
                   >
                     {label}
@@ -99,7 +96,7 @@ export default function TopNavView({ active, authed, name, email, role, context 
                   {isPublic ? (
                     <Link
                       href="/apply-guide"
-                      className="flex items-center gap-1.5 bg-[#012d1d] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                      className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                     >
                       <span className="text-base leading-none">✦</span>
                       Register as Guide
@@ -107,7 +104,7 @@ export default function TopNavView({ active, authed, name, email, role, context 
                   ) : (
                     <Link
                       href={dashboardHref(role)}
-                      className="flex items-center gap-1.5 bg-[#012d1d] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                      className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                     >
                       <span className="material-symbols-outlined text-base leading-none">dashboard</span>
                       Dashboard
@@ -119,13 +116,13 @@ export default function TopNavView({ active, authed, name, email, role, context 
                 <>
                   <Link
                     href="/login"
-                    className="text-sm font-medium text-gray-600 hover:text-[#012d1d] px-3 py-2 rounded-md transition-colors"
+                    className="text-sm font-medium text-gray-600 hover:text-primary px-3 py-2 rounded-md transition-colors"
                   >
                     Sign In
                   </Link>
                   <Link
                     href="/register"
-                    className="flex items-center gap-1.5 bg-[#012d1d] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                    className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                   >
                     <span className="text-base leading-none">✦</span>
                     Register as Guide

@@ -1,4 +1,6 @@
 'use client'
+
+// HoD Quiz Builder
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -20,6 +22,8 @@ export default function QuizBuilder() {
   const [moduleId, setModuleId] = useState('')
   const [passingScore, setPassingScore] = useState(80)
   const [maxAttempts, setMaxAttempts] = useState(3)
+  // Task 5 — HoD-configurable time limit in minutes (null = unlimited)
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | ''>(10)
   const [modules, setModules] = useState<TrainingModule[]>([])
   const [questions, setQuestions] = useState<QuestionDraft[]>([
     { question_text: '', options: ['', '', '', ''], correct_option_index: 0 },
@@ -35,7 +39,7 @@ export default function QuizBuilder() {
       .eq('is_archived', false)
       .order('order_index')
       .then(({ data }) => setModules((data as unknown as TrainingModule[]) || []))
-  }, [])
+  }, [supabase])
 
   const showToast = (msg: string, ok: boolean) => {
     setToast({ msg, ok })
@@ -64,9 +68,20 @@ export default function QuizBuilder() {
 
   const saveQuiz = async () => {
     if (!title.trim()) { showToast('Please enter a quiz title.', false); return }
-    if (!moduleId) { showToast('Please assign this quiz to a module.', false); return }
+    if (!moduleId)     { showToast('Please assign this quiz to a module.', false); return }
     if (questions.some(q => !q.question_text.trim() || q.options.some(o => !o.trim()))) {
       showToast('All questions and options must be filled in.', false)
+      return
+    }
+    if (maxAttempts < 1) { showToast('Max attempts must be at least 1.', false); return }
+
+    // Validate time limit
+    const timeLimitSec =
+      timeLimitMinutes === '' || timeLimitMinutes === 0
+        ? null
+        : Math.round(Number(timeLimitMinutes) * 60)
+    if (timeLimitSec !== null && (timeLimitSec < 60 || timeLimitSec > 14400)) {
+      showToast('Time limit must be 1–240 minutes (or blank for no limit).', false)
       return
     }
 
@@ -74,7 +89,13 @@ export default function QuizBuilder() {
     try {
       const { data: quizData, error: quizErr } = await supabase
         .from('quizzes')
-        .insert({ title: title.trim(), module_id: moduleId, passing_score: passingScore, max_attempts: maxAttempts })
+        .insert({
+          title: title.trim(),
+          module_id: moduleId,
+          passing_score: passingScore,
+          max_attempts: maxAttempts,
+          time_limit_seconds: timeLimitSec, 
+        })
         .select()
         .single()
 
@@ -91,10 +112,8 @@ export default function QuizBuilder() {
       if (qErr) { showToast('Error saving questions: ' + qErr.message, false); return }
 
       showToast('Quiz published successfully!', true)
-      setTitle('')
-      setModuleId('')
-      setPassingScore(80)
-      setMaxAttempts(3)
+      setTitle(''); setModuleId('')
+      setPassingScore(80); setMaxAttempts(3); setTimeLimitMinutes(10)
       setQuestions([{ question_text: '', options: ['', '', '', ''], correct_option_index: 0 }])
     } finally {
       setSaving(false)
@@ -105,29 +124,27 @@ export default function QuizBuilder() {
 
   return (
     <div className="max-w-4xl mx-auto p-8 pb-24 relative">
-      {/* Toast */}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${toast.ok ? 'bg-emerald-600' : 'bg-red-600'}`}>
           {toast.msg}
         </div>
       )}
 
-      {/* Header */}
       <div className="flex justify-between items-end mb-8 border-b pb-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800">Quiz Builder</h1>
-          <p className="text-slate-500">HoD Tool — Create per-module assessments</p>
+          <p className="text-slate-500">HoD Tool — One quiz per module. Configure attempts and time limit.</p>
         </div>
         <button
           onClick={saveQuiz}
           disabled={saving}
-          className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+          className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-50"
         >
-          {saving ? 'Saving...' : 'Publish Quiz'}
+          {saving ? 'Saving…' : 'Publish Quiz'}
         </button>
       </div>
 
-      {/* Quiz Settings */}
+      {/* Row 1 — title + module */}
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold uppercase text-slate-400">Quiz Title *</label>
@@ -146,11 +163,15 @@ export default function QuizBuilder() {
             onChange={e => setModuleId(e.target.value)}
           >
             <option value="">— Select a module —</option>
-            {modules.map(m => (
-              <option key={m.id} value={m.id}>
-                {m.title}{m.training_tracks ? ` (${(m.training_tracks as any)?.tpa_name || ''})` : ''}
-              </option>
-            ))}
+            {modules.map(m => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const tpa = (m.training_tracks as any)?.tpa_name || ''
+              return (
+                <option key={m.id} value={m.id}>
+                  {m.title}{tpa ? ` (${tpa})` : ''}
+                </option>
+              )
+            })}
           </select>
           {selectedModule && (
             <p className="text-xs text-emerald-600 mt-1">✓ Assigned to: {selectedModule.title}</p>
@@ -158,30 +179,40 @@ export default function QuizBuilder() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-8">
+      {/* Row 2 — passing / attempts / time limit */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold uppercase text-slate-400">Passing Score (%)</label>
           <input
-            type="number"
-            min={1}
-            max={100}
+            type="number" min={1} max={100}
             className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
             value={passingScore}
             onChange={e => setPassingScore(Number(e.target.value))}
           />
-          <p className="text-xs text-slate-400">Minimum score to pass (default 80)</p>
+          <p className="text-xs text-slate-400">Default 80</p>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold uppercase text-slate-400">Max Attempts</label>
+          <label className="text-xs font-bold uppercase text-slate-400">Max Attempts *</label>
           <input
-            type="number"
-            min={1}
-            max={10}
+            type="number" min={1} max={10}
             className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
             value={maxAttempts}
             onChange={e => setMaxAttempts(Number(e.target.value))}
           />
-          <p className="text-xs text-slate-400">Max retries allowed per guide (default 3)</p>
+          <p className="text-xs text-slate-400">Hard cap — guides cannot retry beyond this</p>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-bold uppercase text-slate-400">
+            Time Limit (minutes)
+          </label>
+          <input
+            type="number" min={1} max={240}
+            className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            value={timeLimitMinutes}
+            placeholder="Blank = no limit"
+            onChange={e => setTimeLimitMinutes(e.target.value === '' ? '' : Number(e.target.value))}
+          />
+          <p className="text-xs text-slate-400">Countdown runs server-side · 1–240 min</p>
         </div>
       </div>
 
@@ -201,7 +232,7 @@ export default function QuizBuilder() {
             </button>
             <input
               className="w-full text-lg font-bold border-b mb-4 outline-none focus:border-emerald-500 pb-1"
-              placeholder="Enter your question here..."
+              placeholder="Enter your question here…"
               value={q.question_text}
               onChange={e => updateQuestion(qIdx, 'question_text', e.target.value)}
             />

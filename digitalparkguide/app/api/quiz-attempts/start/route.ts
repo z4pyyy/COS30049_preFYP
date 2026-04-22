@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// POST /api/quiz-attempts/start
-// Body: { quiz_id: string }
-//
-// Creates an in_progress attempt, sets expires_at server-side, and
-// returns the attempt plus questions. The client uses expires_at to
-// display a countdown — because the value is server-stamped, hiding
-// the tab or reloading can't buy extra time.
-//
-// If the guide already has an in_progress attempt that hasn't expired,
-// we return that one instead of creating a new row (prevents duplicate
-// attempts from double-clicks or split windows).
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -47,13 +36,13 @@ export async function POST(req: NextRequest) {
   if (active) {
     const { data: questions } = await supabase
       .from('questions')
-      .select('id, quiz_id, question_text, options')  // NOTE: no correct_option_index
+      .select('id, quiz_id, question_text, options')  
       .eq('quiz_id', quiz_id)
 
     return NextResponse.json({ attempt: active, quiz, questions: questions ?? [] })
   }
 
-  // Enforce max attempts (server side, not client)
+  // Enforce max attempts
   const { data: remaining } = await supabase.rpc('remaining_quiz_attempts', {
     p_quiz_id: quiz_id,
     p_user: user.id,
@@ -77,7 +66,7 @@ export async function POST(req: NextRequest) {
   const now = new Date()
   const expiresAt = quiz.time_limit_seconds
     ? new Date(now.getTime() + quiz.time_limit_seconds * 1000).toISOString()
-    : null  // no limit — client treats null as "unlimited"
+    : null  
 
   const { data: attempt, error: insErr } = await supabase
     .from('quiz_attempts')
@@ -98,8 +87,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: insErr.message }, { status: 500 })
   }
 
-  // Return questions WITHOUT correct_option_index so the client can't
-  // compute the right answers client-side.
   const { data: questions } = await supabase
     .from('questions')
     .select('id, quiz_id, question_text, options')

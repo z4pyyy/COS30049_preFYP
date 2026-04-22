@@ -3,12 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 
 interface RouteParams { params: Promise<{ attemptId: string }> }
 
-// POST /api/quiz-attempts/[attemptId]/submit
-// Body: { answers: Record<question_id, selected_option_index> }
-//
-// Server scores the attempt against the questions table, marks it
-// submitted (or expired if the clock has run out), and returns the
-// result. The client never sees correct_option_index.
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -33,17 +27,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Attempt already finalised' }, { status: 409 })
   }
 
-  // Determine status server-side. If expires_at has passed we mark
-  // 'expired' — but we still score whatever answers arrived. The
-  // alternative (zero-score on expiry) was rejected because a guide
-  // who answered 9/10 questions in time shouldn't get zero just
-  // because the last second passed before submit fired.
+  // Determine status server-side
   const nowMs = Date.now()
   const expired = attempt.expires_at
     ? new Date(attempt.expires_at).getTime() < nowMs
     : false
 
-  // Load quiz + questions WITH correct answers (server only)
+  // Load quiz + questions WITH correct answers
   const { data: quiz } = await supabase
     .from('quizzes')
     .select('id, passing_score')

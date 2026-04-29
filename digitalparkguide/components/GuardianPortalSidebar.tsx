@@ -82,6 +82,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
     // Guides + Seniors see their learning modules
     ...(!isHod ? [
       { href: '/training/modules', icon: 'school', label: 'Training Modules', active: pathname.startsWith('/training/modules') },
+      { href: '/dashboard/my-certifications', icon: 'workspace_premium', label: 'My Certifications', active: pathname.startsWith('/dashboard/my-certifications') },
     ] : []),
 
     // HoD admin tools

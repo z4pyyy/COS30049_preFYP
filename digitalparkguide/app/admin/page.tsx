@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import BadgeRenewalSetting from "@/components/BadgeRenewalSetting";
 
 const FEED_ITEMS = [
   {
@@ -127,6 +128,7 @@ export default async function AdminDashboardPage() {
 
           {/* Right sidebar */}
           <div className="col-span-12 lg:col-span-4 space-y-6">
+            <BadgeRenewalSetting />
             <div className="bg-surface-container-lowest p-6 rounded-xl shadow-sm space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-base font-bold text-primary">Active Patrols</h3>

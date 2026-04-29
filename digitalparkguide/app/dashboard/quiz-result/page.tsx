@@ -1,8 +1,6 @@
 'use client'
 
-// Quiz Results dashboard — visible to HoD (all attempts) and
-// Senior Guide (their group only, via RLS on quiz_attempts).
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
 interface AttemptRow {
@@ -16,47 +14,157 @@ interface AttemptRow {
   status: 'in_progress' | 'submitted' | 'expired'
   started_at: string
   submitted_at: string | null
-  // Joined
-  profiles:  { full_name: string | null } | null
-  quizzes:   { title: string; module_id: string | null; passing_score: number } | null
+  guide_name: string
+  quiz_title: string
+  module_title: string
+  tpa_name: string
+  passing_score: number
+}
+
+interface GuideStats {
+  guide_name: string
+  user_id: string
+  attempts: number
+  best_score: number
+  avg_score: number
+  passed: boolean
+}
+
+interface TpaGroup {
+  tpa_name: string
+  attempts: AttemptRow[]
+  stats: { mean: number; median: number; high: number; low: number; total_guides: number; passed_guides: number }
+}
+
+function computeStats(scores: number[]) {
+  if (scores.length === 0) return { mean: 0, median: 0, high: 0, low: 0 }
+  const sorted = [...scores].sort((a, b) => a - b)
+  const mean = Math.round(sorted.reduce((s, v) => s + v, 0) / sorted.length)
+  const mid = Math.floor(sorted.length / 2)
+  const median = sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid]
+  return { mean, median, high: sorted[sorted.length - 1], low: sorted[0] }
 }
 
 export default function QuizResultsPage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [rows, setRows]       = useState<AttemptRow[]>([])
-  const [filter, setFilter]   = useState<'all' | 'passed' | 'failed' | 'expired'>('all')
+  const [rows, setRows] = useState<AttemptRow[]>([])
+  const [tpaFilter, setTpaFilter] = useState<string>('all')
 
   useEffect(() => {
     let cancelled = false
     async function load() {
-      // RLS decides what's visible: HoD+ gets everything, Senior
-      // gets group-only, Guide gets their own attempts. 
       const { data, error } = await supabase
         .from('quiz_attempts')
         .select(`
           id, user_id, quiz_id, score, passed, attempt_number,
           time_taken_seconds, status, started_at, submitted_at,
           profiles:user_id ( full_name ),
-          quizzes ( title, module_id, passing_score )
+          quizzes ( title, passing_score, module_id,
+            training_modules:module_id ( title, training_tracks ( tpa_name ) )
+          )
         `)
         .in('status', ['submitted', 'expired'])
         .order('submitted_at', { ascending: false, nullsFirst: false })
-        .limit(500)
+        .limit(1000)
 
-      if (!cancelled && !error) setRows((data as unknown as AttemptRow[]) ?? [])
+      if (!cancelled && !error) {
+        const mapped: AttemptRow[] = (data ?? []).map((r: Record<string, unknown>) => {
+          const profiles = r.profiles as { full_name: string | null } | null
+          const quizzes = r.quizzes as {
+            title: string
+            passing_score: number
+            module_id: string | null
+            training_modules: {
+              title: string
+              training_tracks: { tpa_name: string } | null
+            } | null
+          } | null
+          return {
+            id: r.id as string,
+            user_id: r.user_id as string,
+            quiz_id: r.quiz_id as string,
+            score: r.score as number,
+            passed: r.passed as boolean,
+            attempt_number: r.attempt_number as number,
+            time_taken_seconds: r.time_taken_seconds as number | null,
+            status: r.status as AttemptRow['status'],
+            started_at: r.started_at as string,
+            submitted_at: r.submitted_at as string | null,
+            guide_name: profiles?.full_name || (r.user_id as string).slice(0, 8),
+            quiz_title: quizzes?.title || '—',
+            module_title: quizzes?.training_modules?.title || '—',
+            tpa_name: quizzes?.training_modules?.training_tracks?.tpa_name || 'Unassigned',
+            passing_score: quizzes?.passing_score ?? 80,
+          }
+        })
+        setRows(mapped)
+      }
       if (!cancelled) setLoading(false)
     }
     load()
     return () => { cancelled = true }
   }, [supabase])
 
-  const filtered = rows.filter((r) => {
-    if (filter === 'passed')  return r.passed
-    if (filter === 'failed')  return !r.passed && r.status === 'submitted'
-    if (filter === 'expired') return r.status === 'expired'
-    return true
-  })
+  const tpaNames = useMemo(() => {
+    const set = new Set(rows.map(r => r.tpa_name))
+    return Array.from(set).sort()
+  }, [rows])
+
+  const filteredRows = useMemo(() => {
+    if (tpaFilter === 'all') return rows
+    return rows.filter(r => r.tpa_name === tpaFilter)
+  }, [rows, tpaFilter])
+
+  const tpaGroups: TpaGroup[] = useMemo(() => {
+    const grouped = new Map<string, AttemptRow[]>()
+    for (const r of filteredRows) {
+      const arr = grouped.get(r.tpa_name) ?? []
+      arr.push(r)
+      grouped.set(r.tpa_name, arr)
+    }
+
+    return Array.from(grouped.entries()).map(([tpa_name, attempts]) => {
+      // Best score per guide for stats
+      const guideScores = new Map<string, number>()
+      const guidePassed = new Map<string, boolean>()
+      for (const a of attempts) {
+        const prev = guideScores.get(a.user_id) ?? 0
+        if (a.score > prev) guideScores.set(a.user_id, a.score)
+        if (a.passed) guidePassed.set(a.user_id, true)
+      }
+      const scores = Array.from(guideScores.values())
+      const baseStats = computeStats(scores)
+      return {
+        tpa_name,
+        attempts,
+        stats: {
+          ...baseStats,
+          total_guides: guideScores.size,
+          passed_guides: Array.from(guidePassed.values()).filter(Boolean).length,
+        },
+      }
+    }).sort((a, b) => a.tpa_name.localeCompare(b.tpa_name))
+  }, [filteredRows])
+
+  // Per-guide breakdown within a TPA
+  const guideStatsForTpa = (attempts: AttemptRow[]): GuideStats[] => {
+    const map = new Map<string, { scores: number[]; name: string; passed: boolean }>()
+    for (const a of attempts) {
+      const entry = map.get(a.user_id) ?? { scores: [], name: a.guide_name, passed: false }
+      entry.scores.push(a.score)
+      if (a.passed) entry.passed = true
+      map.set(a.user_id, entry)
+    }
+    return Array.from(map.entries()).map(([user_id, { scores, name, passed }]) => ({
+      guide_name: name,
+      user_id,
+      attempts: scores.length,
+      best_score: Math.max(...scores),
+      avg_score: Math.round(scores.reduce((s, v) => s + v, 0) / scores.length),
+      passed,
+    })).sort((a, b) => b.best_score - a.best_score)
+  }
 
   if (loading) {
     return (
@@ -64,13 +172,6 @@ export default function QuizResultsPage() {
         <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-4xl">progress_activity</span>
       </div>
     )
-  }
-
-  const counts = {
-    all:     rows.length,
-    passed:  rows.filter((r) => r.passed).length,
-    failed:  rows.filter((r) => !r.passed && r.status === 'submitted').length,
-    expired: rows.filter((r) => r.status === 'expired').length,
   }
 
   return (
@@ -81,100 +182,114 @@ export default function QuizResultsPage() {
           <p className="text-xs uppercase tracking-widest text-[#8DC63F] font-bold">Results</p>
           <h1 className="text-3xl font-black text-[#1B3A24] mt-1">Quiz Results</h1>
           <p className="text-sm text-[#64748b] mt-1">
-            Senior Guides see results for their group · HoD sees every attempt across all parks.
+            Guide quiz performance grouped by TPA. Shows best-score statistics per park.
           </p>
         </div>
 
-        {/* Filter chips */}
+        {/* TPA Filter */}
         <div className="flex gap-2 flex-wrap">
-          {([
-            { key: 'all',     label: 'All',      cls: 'bg-slate-200 text-slate-800' },
-            { key: 'passed',  label: 'Passed',   cls: 'bg-emerald-100 text-emerald-800' },
-            { key: 'failed',  label: 'Failed',   cls: 'bg-red-100 text-red-800' },
-            { key: 'expired', label: 'Expired',  cls: 'bg-amber-100 text-amber-800' },
-          ] as const).map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider ${
-                filter === f.key ? f.cls : 'bg-white border border-[#cbd5e1] text-[#64748b] hover:bg-slate-50'
-              }`}
-            >
-              {f.label} · {counts[f.key]}
-            </button>
-          ))}
+          <button
+            onClick={() => setTpaFilter('all')}
+            className={`text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider ${
+              tpaFilter === 'all' ? 'bg-slate-200 text-slate-800' : 'bg-white border border-[#cbd5e1] text-[#64748b] hover:bg-slate-50'
+            }`}
+          >
+            All TPAs · {rows.length}
+          </button>
+          {tpaNames.map(tpa => {
+            const count = rows.filter(r => r.tpa_name === tpa).length
+            return (
+              <button
+                key={tpa}
+                onClick={() => setTpaFilter(tpa)}
+                className={`text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider ${
+                  tpaFilter === tpa ? 'bg-emerald-100 text-emerald-800' : 'bg-white border border-[#cbd5e1] text-[#64748b] hover:bg-slate-50'
+                }`}
+              >
+                {tpa} · {count}
+              </button>
+            )
+          })}
         </div>
 
-        {/* Results table */}
-        {filtered.length === 0 ? (
+        {tpaGroups.length === 0 ? (
           <div className="bg-white rounded-2xl border border-[#e2e8f0] p-12 text-center">
             <span className="material-symbols-outlined text-4xl text-[#cbd5e1] mb-2 block">quiz</span>
             <p className="font-semibold text-[#1B3A24]">No results to show</p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
-                  <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Guide</th>
-                  <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Quiz</th>
-                  <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Score</th>
-                  <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Status</th>
-                  <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Attempt</th>
-                  <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Time Taken</th>
-                  <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Submitted</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r, idx) => (
-                  <tr key={r.id} className={`border-b border-[#e2e8f0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]'}`}>
-                    <td className="px-5 py-3 text-sm font-semibold text-[#1B3A24]">
-                      {r.profiles?.full_name || r.user_id.slice(0, 8)}
-                    </td>
-                    <td className="px-5 py-3 text-sm text-[#475569]">{r.quizzes?.title || '—'}</td>
-                    <td className="px-5 py-3">
-                      <span className={`text-sm font-black ${
-                        r.passed ? 'text-emerald-700' : 'text-red-700'
-                      }`}>
-                        {r.score}%
-                      </span>
-                      {r.quizzes && (
-                        <span className="text-xs text-[#94a3b8] ml-1">/ {r.quizzes.passing_score}%</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {r.status === 'expired' ? (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold uppercase tracking-wider">
-                          Expired
-                        </span>
-                      ) : r.passed ? (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider">
-                          Passed
-                        </span>
-                      ) : (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold uppercase tracking-wider">
-                          Failed
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-sm text-[#64748b] font-mono">#{r.attempt_number}</td>
-                    <td className="px-5 py-3 text-sm text-[#64748b] font-mono">
-                      {r.time_taken_seconds != null
-                        ? `${Math.floor(r.time_taken_seconds / 60)}m ${r.time_taken_seconds % 60}s`
-                        : '—'}
-                    </td>
-                    <td className="px-5 py-3 text-xs text-[#94a3b8]">
-                      {r.submitted_at
-                        ? new Date(r.submitted_at).toLocaleString('en-MY', {
-                            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                          })
-                        : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          tpaGroups.map(group => {
+            const guides = guideStatsForTpa(group.attempts)
+            return (
+              <div key={group.tpa_name} className="space-y-4">
+                {/* TPA Header + Stats */}
+                <div className="bg-white rounded-2xl border border-[#e2e8f0] p-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-widest text-[#8DC63F] font-bold">{group.tpa_name}</p>
+                      <p className="text-sm text-[#64748b] mt-1">
+                        {group.stats.total_guides} guide{group.stats.total_guides !== 1 ? 's' : ''} ·{' '}
+                        {group.stats.passed_guides} passed
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3 text-center">
+                      {[
+                        { label: 'Mean', value: group.stats.mean, color: 'text-[#1B3A24]' },
+                        { label: 'Median', value: group.stats.median, color: 'text-[#2D6A3F]' },
+                        { label: 'High', value: group.stats.high, color: 'text-emerald-600' },
+                        { label: 'Low', value: group.stats.low, color: 'text-red-600' },
+                      ].map(s => (
+                        <div key={s.label} className="bg-[#f8fafc] rounded-xl px-4 py-2">
+                          <p className="text-xs text-[#94a3b8] font-bold uppercase">{s.label}</p>
+                          <p className={`text-xl font-black ${s.color}`}>{s.value}%</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Guide breakdown table */}
+                <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
+                        <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Guide</th>
+                        <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Best Score</th>
+                        <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Avg Score</th>
+                        <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Attempts</th>
+                        <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {guides.map((g, idx) => (
+                        <tr key={g.user_id} className={`border-b border-[#e2e8f0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]'}`}>
+                          <td className="px-5 py-3 text-sm font-semibold text-[#1B3A24]">{g.guide_name}</td>
+                          <td className="px-5 py-3">
+                            <span className={`text-sm font-black ${g.passed ? 'text-emerald-700' : 'text-red-700'}`}>
+                              {g.best_score}%
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-sm text-[#64748b] font-mono">{g.avg_score}%</td>
+                          <td className="px-5 py-3 text-sm text-[#64748b] font-mono">{g.attempts}</td>
+                          <td className="px-5 py-3">
+                            {g.passed ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold uppercase tracking-wider">
+                                Passed
+                              </span>
+                            ) : (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-bold uppercase tracking-wider">
+                                Not Passed
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })
         )}
       </div>
     </div>

@@ -48,6 +48,13 @@ export async function POST(req: NextRequest) {
       console.error('Webhook enrollment upsert failed:', error.message)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    // Bug 10: pre-satisfy modules already completed in prior tracks
+    const { error: psErr } = await supabase.rpc('presatisfy_track_modules', {
+      p_guide_id: guide_id,
+      p_track_id: track_id,
+    })
+    if (psErr) console.error('[stripe-webhook] presatisfy_track_modules failed:', psErr.message)
   }
 
   return NextResponse.json({ received: true })

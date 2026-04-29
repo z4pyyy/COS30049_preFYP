@@ -73,49 +73,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   // B2.4: Check badge eligibility when module is marked complete
-  if (completed) await checkBadgeEligibility(supabase, user.id, module_id)
 
   return NextResponse.json({ progress: result })
-}
-
-async function checkBadgeEligibility(supabase: Awaited<ReturnType<typeof import('@/lib/supabase/server').createClient>>, userId: string, moduleId: string) {
-  const { data: mod } = await supabase
-    .from('training_modules')
-    .select('track_id')
-    .eq('id', moduleId)
-    .single()
-  if (!mod) return
-
-  const { data: trackModules } = await supabase
-    .from('training_modules')
-    .select('id')
-    .eq('track_id', mod.track_id)
-    .eq('is_active', true)
-    .eq('is_archived', false)
-  if (!trackModules?.length) return
-
-  const { data: done } = await supabase
-    .from('guide_module_progress')
-    .select('module_id')
-    .eq('guide_id', userId)
-    .eq('completed', true)
-    .in('module_id', trackModules.map((m) => m.id))
-
-  const allDone = trackModules.every((m) => done?.some((p) => p.module_id === m.id))
-  if (!allDone) return
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('badge_eligible_tracks')
-    .eq('id', userId)
-    .single()
-  if (!profile) return
-
-  const current: string[] = profile.badge_eligible_tracks || []
-  if (!current.includes(mod.track_id)) {
-    await supabase
-      .from('profiles')
-      .update({ badge_eligible_tracks: [...current, mod.track_id] })
-      .eq('id', userId)
-  }
 }

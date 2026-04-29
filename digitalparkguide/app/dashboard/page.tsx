@@ -7,6 +7,7 @@ import { hasMinRole, type AppRole } from "@/types/roles";
 import { ModuleEditorForm, ModuleEditorState } from "@/components/ModuleEditorForm";
 import { ModuleHistoryPanel } from "@/components/ModuleHistoryPanel";
 import TrainingProgressWidget from "@/components/TrainingProgressWidget";
+import MyBadgesWidget from "@/components/MyBadgesWidget";
 
 interface TrainingTrack {
   id: string
@@ -15,6 +16,10 @@ interface TrainingTrack {
   track_type: string
   is_archived: boolean
   price_myr: number
+  // Bug 9: HoD-set per-module rate. Total = price_per_module * active module count.
+  // NULL → legacy flat price_myr fallback.
+  price_per_module: number | null
+  module_count?: number
 }
 
 interface Module {
@@ -101,7 +106,13 @@ function DashboardContent() {
   // Park Badge (track) CRUD state
   const [trackModalOpen, setTrackModalOpen] = useState(false)
   const [editingTrack, setEditingTrack] = useState<TrainingTrack | null>(null)
-  const [trackForm, setTrackForm] = useState({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800 })
+  const [trackForm, setTrackForm] = useState<{
+    title: string
+    tpa_name: string
+    track_type: string
+    price_myr: number
+    price_per_module: number | null
+  }>({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800, price_per_module: null })
   const [trackSaving, setTrackSaving] = useState(false)
   const [trackToast, setTrackToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -152,11 +163,10 @@ function DashboardContent() {
     try {
       const { data: tracks, error: tracksError } = await supabase
         .from('training_tracks')
-        .select('id, title, tpa_name, track_type, is_archived, price_myr')
+        .select('id, title, tpa_name, track_type, is_archived, price_myr, price_per_module')
         .order('tpa_name')
 
       if (tracksError) throw tracksError
-      setTrainingTracks((tracks || []) as unknown as TrainingTrack[])
 
       const { data: mods, error: modsError } = await supabase
         .from('training_modules')
@@ -164,7 +174,20 @@ function DashboardContent() {
         .order('order_index')
 
       if (modsError) throw modsError
-      setModules((mods || []) as unknown as Module[])
+
+      // Bug 9: derive module_count per track for pricing display
+      const modList = (mods || []) as unknown as Module[]
+      const countByTrack = modList.reduce<Record<string, number>>((acc, m) => {
+        if (!m.is_archived && m.is_active) acc[m.track_id] = (acc[m.track_id] ?? 0) + 1
+        return acc
+      }, {})
+      const enriched = (tracks || []).map(t => ({
+        ...(t as Record<string, unknown>),
+        module_count: countByTrack[(t as { id: string }).id] ?? 0,
+      })) as unknown as TrainingTrack[]
+
+      setTrainingTracks(enriched)
+      setModules(modList)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load training modules data'
       setError(message)
@@ -200,13 +223,19 @@ function DashboardContent() {
 
   function openCreateTrack() {
     setEditingTrack(null)
-    setTrackForm({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800 })
+    setTrackForm({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800, price_per_module: null })
     setTrackModalOpen(true)
   }
 
   function openEditTrack(track: TrainingTrack) {
     setEditingTrack(track)
-    setTrackForm({ title: track.title, tpa_name: track.tpa_name, track_type: track.track_type, price_myr: track.price_myr ?? 7800 })
+    setTrackForm({
+      title: track.title,
+      tpa_name: track.tpa_name,
+      track_type: track.track_type,
+      price_myr: track.price_myr ?? 7800,
+      price_per_module: track.price_per_module ?? null,
+    })
     setTrackModalOpen(true)
   }
 
@@ -218,10 +247,17 @@ function DashboardContent() {
     }
     setTrackSaving(true)
     try {
+      const payload = {
+        title: trackForm.title.trim(),
+        tpa_name: trackForm.tpa_name.trim(),
+        track_type: trackForm.track_type,
+        price_myr: trackForm.price_myr,
+        price_per_module: trackForm.price_per_module,
+      }
       if (editingTrack) {
         const { error } = await supabase
           .from('training_tracks')
-          .update({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type, price_myr: trackForm.price_myr })
+          .update(payload)
           .eq('id', editingTrack.id)
         if (error) throw error
         setTrainingTracks(prev => prev.map(t => t.id === editingTrack.id ? { ...t, ...trackForm } : t))
@@ -229,11 +265,11 @@ function DashboardContent() {
       } else {
         const { data: newTrack, error } = await supabase
           .from('training_tracks')
-          .insert({ title: trackForm.title.trim(), tpa_name: trackForm.tpa_name.trim(), track_type: trackForm.track_type, price_myr: trackForm.price_myr })
-          .select('id, title, tpa_name, track_type, is_archived, price_myr')
+          .insert(payload)
+          .select('id, title, tpa_name, track_type, is_archived, price_myr, price_per_module')
           .single()
         if (error) throw error
-        setTrainingTracks(prev => [...prev, newTrack as unknown as TrainingTrack])
+        setTrainingTracks(prev => [...prev, { ...(newTrack as unknown as TrainingTrack), module_count: 0 }])
         setTrackToast({ msg: 'Park Badge created.', ok: true })
       }
       setTrackModalOpen(false)
@@ -432,12 +468,13 @@ function DashboardContent() {
 
   const handleApproveApplication = async (appId: string) => {
     setProcessingApp(appId);
-    const { error } = await supabase.rpc("approve_guide_application", {
-      p_app_id: appId,
-      p_notes: appNotes[appId] ?? "",
+    const res = await fetch(`/api/applications/${appId}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: appNotes[appId] ?? '' }),
     });
     setProcessingApp(null);
-    if (error) { showAppToast(error.message, false); return; }
+    if (!res.ok) { const d = await res.json(); showAppToast(d.error, false); return; }
     showAppToast("Application approved. Role upgraded to Guide.", true);
     setExpandedApp(null);
     await loadApplicationsData();
@@ -446,12 +483,13 @@ function DashboardContent() {
   const handleRejectApplication = async (appId: string) => {
     if (!appNotes[appId]?.trim()) { showAppToast("Rejection notes are required.", false); return; }
     setProcessingApp(appId);
-    const { error } = await supabase.rpc("reject_guide_application", {
-      p_app_id: appId,
-      p_notes: appNotes[appId].trim(),
+    const res = await fetch(`/api/applications/${appId}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: appNotes[appId].trim() }),
     });
     setProcessingApp(null);
-    if (error) { showAppToast(error.message, false); return; }
+    if (!res.ok) { const d = await res.json(); showAppToast(d.error, false); return; }
     showAppToast("Application rejected.", true);
     setExpandedApp(null);
     await loadApplicationsData();
@@ -744,7 +782,36 @@ function DashboardContent() {
                     <p className="text-[11px] text-gray-400 mt-1">Guides certified under this badge can only operate in this TPA.</p>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Activation Price (RM)</label>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Price per Module (RM)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">RM</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={trackForm.price_per_module ?? ''}
+                        placeholder="e.g. 500"
+                        onChange={e => {
+                          const raw = e.target.value
+                          setTrackForm(f => ({
+                            ...f,
+                            price_per_module: raw === '' ? null : Math.max(1, parseInt(raw) || 0),
+                          }))
+                        }}
+                        className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] transition-all"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Total activation fee = this rate × number of active modules. Leave blank to use the flat fallback below.
+                    </p>
+                    {trackForm.price_per_module != null && editingTrack && (
+                      <p className="text-[11px] text-emerald-700 mt-1">
+                        Preview: {editingTrack.module_count ?? 0} modules × RM {trackForm.price_per_module}
+                        = RM {((editingTrack.module_count ?? 0) * trackForm.price_per_module).toLocaleString('en-MY')}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Legacy Flat Price (RM)</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">RM</span>
                       <input
@@ -755,7 +822,7 @@ function DashboardContent() {
                         className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#012d1d]/20 focus:border-[#012d1d] transition-all"
                       />
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-1">One-time fee guides pay to activate this track.</p>
+                    <p className="text-[11px] text-gray-400 mt-1">Used only when Price per Module is blank.</p>
                   </div>
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Badge Type</label>
@@ -821,7 +888,20 @@ function DashboardContent() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="font-semibold text-[#1B3A24] text-sm">RM {(track.price_myr ?? 7800).toLocaleString('en-MY')}</span>
+                        {track.price_per_module != null ? (
+                          <div>
+                            <span className="font-semibold text-[#1B3A24] text-sm">
+                              RM {((track.module_count ?? 0) * track.price_per_module).toLocaleString('en-MY')}
+                            </span>
+                            <span className="block text-[11px] text-gray-400">
+                              {track.module_count ?? 0} mod × RM {track.price_per_module}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-[#1B3A24] text-sm">
+                            RM {(track.price_myr ?? 7800).toLocaleString('en-MY')}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4"><span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800">🧭 Guide</span></td>
                       <td className="px-6 py-4 text-right">
@@ -987,18 +1067,22 @@ function DashboardContent() {
           )}
 
           <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-            <div className="flex gap-3">
-              {(["PENDING","APPROVED","REJECTED"] as const).map(s => (
-                <div key={s} className={`text-center px-4 py-2 rounded-xl border ${s === "PENDING" ? "bg-amber-50 border-amber-200" : s === "APPROVED" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
-                  <p className={`text-xl font-black ${s === "PENDING" ? "text-amber-700" : s === "APPROVED" ? "text-emerald-700" : "text-red-700"}`}>{appCounts[s]}</p>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase">{s}</p>
-                </div>
-              ))}
+            <div className="flex gap-3 flex-wrap">
+              {(["PENDING","UNDER_REVIEW","INTERVIEW_SCHEDULED","APPROVED","REJECTED"] as const).map(s => {
+                const cfg = TAB_CONFIG[s]
+                return (
+                  <div key={s} className={`text-center px-4 py-2 rounded-xl border bg-gray-50 border-gray-200`}>
+                    <p className={`text-xl font-black ${cfg.color}`}>{appCounts[s]}</p>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase">{cfg.label}</p>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6">
-            {(["PENDING","APPROVED","REJECTED"] as const).map(t => {
+          {/* Bug 7a: include UNDER_REVIEW and INTERVIEW_SCHEDULED tabs so scheduled interviews don't "disappear" */}
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6 flex-wrap">
+            {(["PENDING","UNDER_REVIEW","INTERVIEW_SCHEDULED","APPROVED","REJECTED"] as const).map(t => {
               const cfg = TAB_CONFIG[t];
               return (
                 <button key={t} onClick={() => setAppTab(t)}
@@ -1077,6 +1161,8 @@ function DashboardContent() {
                           <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Prior Experience</p>
                           <p className="text-sm text-gray-800 leading-relaxed">{app.experience}</p>
                         </div>
+
+                        <ApplicationDocumentsPanel applicationId={app.id} />
 
                         {app.status !== "PENDING" && app.reviewer_notes && (
                           <div className={`rounded-xl p-4 ${app.status === "APPROVED" ? "bg-emerald-50 border border-emerald-200" : "bg-red-50 border border-red-200"}`}>
@@ -1158,6 +1244,8 @@ function DashboardContent() {
         </div>
 
         <TrainingProgressWidget mode={widgetMode} />
+
+        {widgetMode === 'guide' && <MyBadgesWidget />}
       </section>
 
       <footer className="w-full py-6 mt-auto bg-emerald-950 flex flex-col md:flex-row justify-between items-center px-6 lg:px-12 gap-4">
@@ -1262,6 +1350,78 @@ function InterviewScheduler({
         className="w-full px-4 py-2 rounded-lg bg-indigo-700 text-white font-semibold text-sm hover:bg-indigo-800 transition-all disabled:opacity-50">
         {saving ? "Scheduling…" : existing.date ? "Update Interview" : "Confirm & Notify Applicant"}
       </button>
+    </div>
+  )
+}
+
+// Bug 6: HoD document panel — fetches signed URLs from /api/applications/[id]/documents
+function ApplicationDocumentsPanel({ applicationId }: { applicationId: string }) {
+  const [docs, setDocs] = useState<Array<{
+    id: string
+    file_name: string
+    file_size: number
+    mime_type: string
+    uploaded_at: string
+    signed_url: string | null
+  }>>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/applications/${applicationId}/documents`)
+      .then(r => r.json().then(b => ({ ok: r.ok, b })))
+      .then(({ ok, b }) => {
+        if (cancelled) return
+        if (!ok) { setError(b.error ?? 'Failed to load documents'); setDocs([]) }
+        else { setDocs(b.documents ?? []); setError(null) }
+      })
+      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [applicationId])
+
+  return (
+    <div className="bg-gray-50 rounded-xl p-4">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 flex items-center gap-1">
+        <span className="material-symbols-outlined text-sm">attach_file</span>
+        Uploaded Documents
+      </p>
+      {loading ? (
+        <p className="text-xs text-gray-500">Loading documents…</p>
+      ) : error ? (
+        <p className="text-xs text-red-600">Error: {error}</p>
+      ) : docs.length === 0 ? (
+        <p className="text-xs text-gray-500 italic">No documents uploaded.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {docs.map(d => (
+            <li key={d.id} className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="material-symbols-outlined text-sm text-gray-500 shrink-0">description</span>
+                <span className="text-sm text-gray-900 truncate">{d.file_name}</span>
+                <span className="text-[10px] text-gray-500 shrink-0">
+                  {(d.file_size / 1024).toFixed(1)} KB
+                </span>
+              </div>
+              {d.signed_url ? (
+                <a
+                  href={d.signed_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 shrink-0"
+                >
+                  <span className="material-symbols-outlined text-sm">open_in_new</span>
+                  View
+                </a>
+              ) : (
+                <span className="text-[10px] text-gray-400 shrink-0">No link</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

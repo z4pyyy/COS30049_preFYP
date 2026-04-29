@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { sendInterviewScheduledEmail } from '@/lib/email'
 
 interface RouteParams { params: Promise<{ id: string }> }
 
@@ -52,6 +53,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  try {
+    await sendInterviewScheduledEmail({
+      recipientEmail: data.email,
+      fullName: data.full_name,
+      tpaName: data.tpa_name,
+      interviewDate: date,
+      interviewTime: time,
+      interviewLocation: location.trim(),
+    })
+  } catch (emailErr) {
+    console.error('Failed to send interview email:', emailErr)
+  }
 
   return NextResponse.json({ application: data })
 }

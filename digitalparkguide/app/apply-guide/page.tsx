@@ -28,6 +28,19 @@ type ExistingApp = {
 const STEPS = ["Personal Details", "Park & Track", "Your Background", "Documents", "Review"];
 
 export default function ApplyGuidePage() {
+  const [countryCode, setCountryCode] = useState("+60");
+
+  const COUNTRY_CODES = [
+    { code: "+60", label: "🇲🇾 +60" },
+    { code: "+65", label: "🇸🇬 +65" },
+    { code: "+62", label: "🇮🇩 +62" },
+    { code: "+63", label: "🇵🇭 +63" },
+    { code: "+66", label: "🇹🇭 +66" },
+    { code: "+84", label: "🇻🇳 +84" },
+    { code: "+44", label: "🇬🇧 +44" },
+    { code: "+1",  label: "🇺🇸 +1"  },
+  ];
+  
   const router = useRouter();
   const supabase = createClient();
 
@@ -237,7 +250,29 @@ export default function ApplyGuidePage() {
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={INPUT} />
             </Field>
             <Field label="Phone">
-              <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+60 …" className={INPUT} />
+              <div className="flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={e => setCountryCode(e.target.value)}
+                  className="bg-white border border-gray-200 rounded-xl py-3 px-3 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer shrink-0"
+                >
+                  {COUNTRY_CODES.map(c => (
+                    <option key={c.code} value={c.code}>{c.label}</option>
+                  ))}
+                </select>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={e => {
+                    const digitsOnly = e.target.value.replace(/\D/g, "");
+                    setPhone(digitsOnly);
+                  }}
+                  placeholder="11 2345678"
+                  maxLength={15}
+                  inputMode="numeric"
+                  className={`${INPUT} flex-1`}
+                />
+              </div>
             </Field>
           </div>
         )}
@@ -291,23 +326,33 @@ export default function ApplyGuidePage() {
         {/* Step 2 — Background */}
         {step === 2 && (
           <div className="space-y-5">
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-1">Your Background</h2>
-              <p className="text-sm text-gray-500">Help the HoD understand why you&apos;re a good fit.</p>
-            </div>
+            ...
             <Field label="Motivation" required hint={`${motivation.length} chars — min 50`}>
-              <textarea value={motivation}
-                onChange={e => setMotivation(stripSpecialChars(e.target.value))} rows={5}
+              <textarea
+                value={motivation}
+                onChange={e => {
+                  const cleaned = e.target.value.replace(SPECIAL_CHAR_RE, "");
+                  setMotivation(cleaned);
+                }}
+                rows={5}
                 placeholder="Why do you want to become a certified guide for this park?"
-                className={`${INPUT} resize-none`} />
-              {hasSpecialChars(motivation) && <SpecialCharWarning />}
+                className={`${INPUT} resize-none`}
+              />
+              {/[^a-zA-Z0-9\s,./()\-']/.test(motivation) && <SpecialCharWarning />}
             </Field>
+
             <Field label="Prior Experience" required hint={`${experience.length} chars — min 20`}>
-              <textarea value={experience}
-                onChange={e => setExperience(stripSpecialChars(e.target.value))} rows={4}
+              <textarea
+                value={experience}
+                onChange={e => {
+                  const cleaned = e.target.value.replace(SPECIAL_CHAR_RE, "");
+                  setExperience(cleaned);
+                }}
+                rows={4}
                 placeholder="Describe any relevant experience — forestry, ecology, tourism, guiding, etc."
-                className={`${INPUT} resize-none`} />
-              {hasSpecialChars(experience) && <SpecialCharWarning />}
+                className={`${INPUT} resize-none`}
+              />
+              {/[^a-zA-Z0-9\s,./()\-']/.test(experience) && <SpecialCharWarning />}
             </Field>
           </div>
         )}
@@ -373,13 +418,35 @@ export default function ApplyGuidePage() {
                 { label: "Phone",     value: phone || "—" },
                 { label: "TPA",       value: tpaName },
                 { label: "Track",     value: tracks.find(t => t.id === trackId)?.title || "Undecided" },
-                { label: "Documents", value: `${stagedFiles.length} file${stagedFiles.length === 1 ? "" : "s"}` },
               ].map(({ label, value }) => (
                 <div key={label} className="flex gap-4 px-5 py-3">
                   <span className="text-xs font-bold text-gray-500 uppercase tracking-widest w-28 shrink-0 mt-0.5">{label}</span>
                   <span className="text-sm text-gray-900 font-medium">{value}</span>
                 </div>
               ))}
+              {/* Bug 5: list staged documents by name (not just a count) */}
+              <div className="px-5 py-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">
+                  Documents ({stagedFiles.length})
+                </span>
+                {stagedFiles.length === 0 ? (
+                  <p className="text-sm text-gray-500">No documents attached.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {stagedFiles.map((f, i) => (
+                      <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-3 text-sm text-gray-900">
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className="material-symbols-outlined text-sm text-gray-500 shrink-0">description</span>
+                          <span className="truncate">{f.name}</span>
+                        </span>
+                        <span className="text-xs text-gray-500 shrink-0">
+                          {(f.size / 1024).toFixed(1)} KB
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               <div className="px-5 py-3">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-1">Motivation</span>
                 <p className="text-sm text-gray-900 leading-relaxed">{motivation}</p>

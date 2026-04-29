@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import TopNavClient from '@/components/TopNavClient'
 
 interface Question {
@@ -34,6 +34,7 @@ interface Attempt {
 
 function ParkQuizInterface() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const quizId = searchParams.get('quiz_id')
 
   const [loading, setLoading] = useState(true)
@@ -196,7 +197,7 @@ function ParkQuizInterface() {
           </p>
 
           {result.passed ? (
-            <button onClick={() => window.history.back()}
+            <button onClick={() => router.push(`/training/modules/${quiz?.module_id}`)}
               className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all uppercase tracking-widest">
               Return to Module
             </button>
@@ -208,7 +209,7 @@ function ParkQuizInterface() {
           ) : (
             <div>
               <p className="text-xs text-red-400 mb-4">No attempts remaining. Contact your HoD.</p>
-              <button onClick={() => window.history.back()}
+              <button onClick={() => router.push(`/training/modules/${quiz?.module_id}`)}
                 className="w-full py-4 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-all">
                 Return to Module
               </button>

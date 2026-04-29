@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
   const { quiz_id } = await req.json()
   if (!quiz_id) return NextResponse.json({ error: 'quiz_id required' }, { status: 400 })
 
-  // Fetch quiz metadata
   const { data: quiz, error: qErr } = await supabase
     .from('quizzes')
     .select('id, title, module_id, passing_score, max_attempts, time_limit_seconds')
@@ -18,6 +17,21 @@ export async function POST(req: NextRequest) {
 
   if (qErr || !quiz) {
     return NextResponse.json({ error: 'Quiz not found' }, { status: 404 })
+  }
+
+  // Module-scoped unlock: quiz available only after its module is completed
+  const quizModuleId: string | null = (quiz as { module_id: string | null }).module_id ?? null
+  if (quizModuleId) {
+    const { data: unlocked } = await supabase.rpc('module_quiz_unlocked', {
+      p_module: quizModuleId,
+      p_user: user.id,
+    })
+    if (!unlocked) {
+      return NextResponse.json(
+        { error: 'Complete this module before taking the quiz.' },
+        { status: 403 },
+      )
+    }
   }
 
   // Resume an existing in_progress attempt if the clock hasn't run out

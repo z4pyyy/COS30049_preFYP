@@ -216,11 +216,11 @@ export default function ApplicationStatusPage() {
         <Row label="Phone"        value={app.phone ?? "—"} />
       </div>
 
-      {/* Documents */}
-      {app.document_count > 0 && (
+      {/* Documents — Bug 7c: show whenever docs exist, not gated by stale document_count */}
+      {(docs.length > 0 || app.document_count > 0) && (
         <div className="bg-white rounded-2xl border border-gray-200 p-5">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
-            Supporting Documents ({app.document_count})
+            Supporting Documents ({docs.length || app.document_count})
           </p>
           {docs.length === 0 ? (
             <p className="text-sm text-gray-500">Loading documents…</p>

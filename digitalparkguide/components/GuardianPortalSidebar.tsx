@@ -91,7 +91,8 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
       // Task 3 — HoD reassign UI lives here
       { href: '/dashboard/hod/groups',          icon: 'groups',     label: 'Guide Groups',      active: pathname.startsWith('/dashboard/hod/groups') },
       { href: '/dashboard/hod/announcements',   icon: 'campaign',   label: 'Announcements',     active: pathname.startsWith('/dashboard/hod/announcements') },
-      { href: '/dashboard/quiz-builder',        icon: 'edit_note',  label: 'Quiz Builder',      active: pathname.startsWith('/dashboard/quiz-builder') },
+      { href: '/dashboard/quiz-builder',        icon: 'edit_note',  label: 'Quiz Builder',      active: pathname === '/dashboard/quiz-builder' },
+      { href: '/dashboard/quiz-builder/manage', icon: 'list_alt',   label: 'Quiz Management',   active: pathname.startsWith('/dashboard/quiz-builder/manage') },
       { href: '/dashboard/quiz-result',         icon: 'analytics',  label: 'Quiz Results',      active: pathname.startsWith('/dashboard/quiz-result') },
     ] : []),
   ]

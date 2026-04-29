@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { StatusPopup } from '@/components/StatusPopup'
 
-interface QuestionDraft {
+interface QuestionRow {
+  id: string
   question_text: string
   options: string[]
   correct_option_index: number
@@ -18,73 +21,95 @@ interface TrainingModule {
   tpa_name: string
 }
 
-export default function QuizBuilder() {
+function EditQuizInner() {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const quizId = searchParams.get('id')
+
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [popup, setPopup] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+  const clearPopup = useCallback(() => setPopup(null), [])
+
   const [title, setTitle] = useState('')
   const [moduleId, setModuleId] = useState('')
   const [passingScore, setPassingScore] = useState(80)
   const [maxAttempts, setMaxAttempts] = useState(3)
   const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | ''>(10)
+  const [questions, setQuestions] = useState<QuestionRow[]>([])
+  const [deletedQuestionIds, setDeletedQuestionIds] = useState<string[]>([])
   const [modules, setModules] = useState<TrainingModule[]>([])
   const [existingQuizModuleIds, setExistingQuizModuleIds] = useState<Set<string>>(new Set())
-  const [questions, setQuestions] = useState<QuestionDraft[]>([
-    { question_text: '', options: ['', '', '', ''], correct_option_index: 0 },
-  ])
-  const [saving, setSaving] = useState(false)
-  const [popup, setPopup] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-  const clearPopup = useCallback(() => setPopup(null), [])
-
-  useEffect(() => {
-    async function load() {
-      const { data: mods } = await supabase
-        .from('training_modules')
-        .select('id, title, track_id, training_tracks(title, tpa_name)')
-        .eq('is_active', true)
-        .eq('is_archived', false)
-        .order('order_index', { ascending: true })
-
-      const mapped: TrainingModule[] = (mods ?? []).map((m: Record<string, unknown>) => {
-        const track = m.training_tracks as { title: string; tpa_name: string } | null
-        return {
-          id: m.id as string,
-          title: m.title as string,
-          track_id: m.track_id as string,
-          track_title: track?.title ?? '',
-          tpa_name: track?.tpa_name ?? '',
-        }
-      })
-      setModules(mapped)
-
-      const { data: quizzes } = await supabase
-        .from('quizzes')
-        .select('module_id')
-      setExistingQuizModuleIds(new Set((quizzes ?? []).map(q => q.module_id).filter(Boolean)))
-    }
-    load()
-  }, [supabase])
 
   const showToast = (msg: string, ok: boolean) => {
     setPopup({ msg, type: ok ? 'success' : 'error' })
   }
 
-  const addQuestion = () =>
-    setQuestions([...questions, { question_text: '', options: ['', '', '', ''], correct_option_index: 0 }])
+  useEffect(() => {
+    if (!quizId) return
+    async function load() {
+      const [{ data: quiz }, { data: qs }, { data: mods }, { data: allQuizzes }] = await Promise.all([
+        supabase.from('quizzes').select('*').eq('id', quizId!).single(),
+        supabase.from('questions').select('id, question_text, options, correct_option_index').eq('quiz_id', quizId!),
+        supabase.from('training_modules').select('id, title, track_id, training_tracks(title, tpa_name)').eq('is_active', true).eq('is_archived', false).order('order_index', { ascending: true }),
+        supabase.from('quizzes').select('module_id'),
+      ])
 
-  const updateQuestion = (qIdx: number, field: string, value: unknown) => {
+      if (quiz) {
+        setTitle(quiz.title)
+        setModuleId(quiz.module_id ?? '')
+        setPassingScore(quiz.passing_score ?? 80)
+        setMaxAttempts(quiz.max_attempts ?? 3)
+        setTimeLimitMinutes(quiz.time_limit_seconds ? Math.round(quiz.time_limit_seconds / 60) : '')
+      }
+
+      if (qs?.length) {
+        setQuestions(qs.map(q => ({
+          id: q.id,
+          question_text: q.question_text,
+          options: Array.isArray(q.options) ? q.options : JSON.parse(q.options as unknown as string),
+          correct_option_index: q.correct_option_index,
+        })))
+      }
+
+      const mapped: TrainingModule[] = (mods ?? []).map((m: Record<string, unknown>) => {
+        const track = m.training_tracks as { title: string; tpa_name: string } | null
+        return { id: m.id as string, title: m.title as string, track_id: m.track_id as string, track_title: track?.title ?? '', tpa_name: track?.tpa_name ?? '' }
+      })
+      setModules(mapped)
+
+      const otherQuizModuleIds = (allQuizzes ?? [])
+        .filter(q => q.module_id && q.module_id !== quiz?.module_id)
+        .map(q => q.module_id)
+      setExistingQuizModuleIds(new Set(otherQuizModuleIds))
+
+      setLoading(false)
+    }
+    load()
+  }, [quizId, supabase])
+
+  const addQuestion = () =>
+    setQuestions([...questions, { id: `new-${Date.now()}`, question_text: '', options: ['', '', '', ''], correct_option_index: 0 }])
+
+  const updateQuestion = (idx: number, field: string, value: unknown) => {
     const next = [...questions]
-    ;(next[qIdx] as unknown as Record<string, unknown>)[field] = value
+    ;(next[idx] as unknown as Record<string, unknown>)[field] = value
     setQuestions(next)
   }
 
   const updateOption = (qIdx: number, oIdx: number, value: string) => {
     const next = [...questions]
+    next[qIdx].options = [...next[qIdx].options]
     next[qIdx].options[oIdx] = value
     setQuestions(next)
   }
 
-  const removeQuestion = (index: number) => {
+  const removeQuestion = (idx: number) => {
     if (questions.length <= 1) { showToast('A quiz must have at least one question.', false); return }
-    setQuestions(questions.filter((_, i) => i !== index))
+    const q = questions[idx]
+    if (!q.id.startsWith('new-')) setDeletedQuestionIds(prev => [...prev, q.id])
+    setQuestions(questions.filter((_, i) => i !== idx))
   }
 
   const saveQuiz = async () => {
@@ -96,10 +121,7 @@ export default function QuizBuilder() {
     }
     if (maxAttempts < 1) { showToast('Max attempts must be at least 1.', false); return }
 
-    const timeLimitSec =
-      timeLimitMinutes === '' || timeLimitMinutes === 0
-        ? null
-        : Math.round(Number(timeLimitMinutes) * 60)
+    const timeLimitSec = timeLimitMinutes === '' || timeLimitMinutes === 0 ? null : Math.round(Number(timeLimitMinutes) * 60)
     if (timeLimitSec !== null && (timeLimitSec < 60 || timeLimitSec > 14400)) {
       showToast('Time limit must be 1–240 minutes (or blank for no limit).', false)
       return
@@ -108,9 +130,9 @@ export default function QuizBuilder() {
     setSaving(true)
     try {
       const selectedMod = modules.find(m => m.id === moduleId)
-      const { data: quizData, error: quizErr } = await supabase
+      const { error: quizErr } = await supabase
         .from('quizzes')
-        .insert({
+        .update({
           title: title.trim(),
           module_id: moduleId,
           track_id: selectedMod?.track_id ?? null,
@@ -118,39 +140,65 @@ export default function QuizBuilder() {
           max_attempts: maxAttempts,
           time_limit_seconds: timeLimitSec,
         })
-        .select()
-        .single()
+        .eq('id', quizId!)
 
-      if (quizErr) { showToast('Error saving quiz: ' + quizErr.message, false); return }
+      if (quizErr) { showToast('Error updating quiz: ' + quizErr.message, false); return }
 
-      const questionsToSave = questions.map(q => ({
-        quiz_id: quizData.id,
-        question_text: q.question_text.trim(),
-        options: q.options,
-        correct_option_index: q.correct_option_index,
-      }))
+      // Delete removed questions
+      if (deletedQuestionIds.length > 0) {
+        await supabase.from('questions').delete().in('id', deletedQuestionIds)
+      }
 
-      const { error: qErr } = await supabase.from('questions').insert(questionsToSave)
-      if (qErr) { showToast('Error saving questions: ' + qErr.message, false); return }
+      // Upsert questions
+      for (const q of questions) {
+        if (q.id.startsWith('new-')) {
+          await supabase.from('questions').insert({
+            quiz_id: quizId!,
+            question_text: q.question_text.trim(),
+            options: q.options,
+            correct_option_index: q.correct_option_index,
+          })
+        } else {
+          await supabase.from('questions').update({
+            question_text: q.question_text.trim(),
+            options: q.options,
+            correct_option_index: q.correct_option_index,
+          }).eq('id', q.id)
+        }
+      }
 
-      showToast('Quiz published successfully!', true)
-      setExistingQuizModuleIds(prev => new Set([...prev, moduleId]))
-      setTitle(''); setModuleId('')
-      setPassingScore(80); setMaxAttempts(3); setTimeLimitMinutes(10)
-      setQuestions([{ question_text: '', options: ['', '', '', ''], correct_option_index: 0 }])
+      showToast('Quiz updated successfully!', true)
+      setDeletedQuestionIds([])
+      setTimeout(() => router.push('/dashboard/quiz-builder/manage'), 1500)
     } finally {
       setSaving(false)
     }
   }
 
   const selectedModule = modules.find(m => m.id === moduleId)
-
-  // Group modules by TPA for optgroup display
   const modulesByTpa = modules.reduce<Record<string, TrainingModule[]>>((acc, m) => {
     const key = m.tpa_name || 'Unassigned'
     ;(acc[key] ??= []).push(m)
     return acc
   }, {})
+
+  if (!quizId) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center">
+        <p className="text-red-600 font-semibold">No quiz ID provided.</p>
+        <Link href="/dashboard/quiz-builder/manage" className="text-emerald-600 hover:underline mt-4 inline-block">Back to Quiz Management</Link>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-8 text-center py-24">
+        <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-4xl">progress_activity</span>
+        <p className="text-slate-500 mt-4">Loading quiz…</p>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-8 pb-24 relative">
@@ -158,15 +206,18 @@ export default function QuizBuilder() {
 
       <div className="flex justify-between items-end mb-8 border-b pb-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-800">Quiz Builder</h1>
-          <p className="text-slate-500">HoD Tool — One quiz per module. Configure attempts and time limit.</p>
+          <Link href="/dashboard/quiz-builder/manage" className="text-xs text-emerald-600 hover:underline uppercase tracking-wider font-bold">
+            ← Back to Management
+          </Link>
+          <h1 className="text-3xl font-black text-slate-800 mt-2">Edit Quiz</h1>
+          <p className="text-slate-500">Modify quiz details, questions, and correct answers.</p>
         </div>
         <button
           onClick={saveQuiz}
           disabled={saving}
           className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Publish Quiz'}
+          {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
 
@@ -178,7 +229,6 @@ export default function QuizBuilder() {
             className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="e.g. Bako Flora Assessment"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -192,11 +242,7 @@ export default function QuizBuilder() {
             {Object.entries(modulesByTpa).map(([tpa, mods]) => (
               <optgroup key={tpa} label={tpa}>
                 {mods.map(m => (
-                  <option
-                    key={m.id}
-                    value={m.id}
-                    disabled={existingQuizModuleIds.has(m.id)}
-                  >
+                  <option key={m.id} value={m.id} disabled={existingQuizModuleIds.has(m.id)}>
                     {m.title} — {m.track_title}{existingQuizModuleIds.has(m.id) ? ' (has quiz)' : ''}
                   </option>
                 ))}
@@ -204,9 +250,7 @@ export default function QuizBuilder() {
             ))}
           </select>
           {selectedModule && (
-            <p className="text-xs text-emerald-600 mt-1">
-              ✓ {selectedModule.tpa_name} · {selectedModule.track_title}
-            </p>
+            <p className="text-xs text-emerald-600 mt-1">✓ {selectedModule.tpa_name} · {selectedModule.track_title}</p>
           )}
         </div>
       </div>
@@ -215,43 +259,22 @@ export default function QuizBuilder() {
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold uppercase text-slate-400">Passing Score (%)</label>
-          <input
-            type="number" min={1} max={100}
-            className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            value={passingScore}
-            onChange={e => setPassingScore(Number(e.target.value))}
-          />
-          <p className="text-xs text-slate-400">Default 80</p>
+          <input type="number" min={1} max={100} className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500" value={passingScore} onChange={e => setPassingScore(Number(e.target.value))} />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold uppercase text-slate-400">Max Attempts *</label>
-          <input
-            type="number" min={1} max={10}
-            className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            value={maxAttempts}
-            onChange={e => setMaxAttempts(Number(e.target.value))}
-          />
-          <p className="text-xs text-slate-400">Hard cap — guides cannot retry beyond this</p>
+          <input type="number" min={1} max={10} className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500" value={maxAttempts} onChange={e => setMaxAttempts(Number(e.target.value))} />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold uppercase text-slate-400">
-            Time Limit (minutes)
-          </label>
-          <input
-            type="number" min={1} max={240}
-            className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            value={timeLimitMinutes}
-            placeholder="Blank = no limit"
-            onChange={e => setTimeLimitMinutes(e.target.value === '' ? '' : Number(e.target.value))}
-          />
-          <p className="text-xs text-slate-400">Countdown runs server-side · 1–240 min</p>
+          <label className="text-xs font-bold uppercase text-slate-400">Time Limit (minutes)</label>
+          <input type="number" min={1} max={240} className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500" value={timeLimitMinutes} placeholder="Blank = no limit" onChange={e => setTimeLimitMinutes(e.target.value === '' ? '' : Number(e.target.value))} />
         </div>
       </div>
 
       {/* Questions */}
       <div className="space-y-8">
         {questions.map((q, qIdx) => (
-          <div key={qIdx} className="p-6 bg-white border rounded-xl shadow-sm relative">
+          <div key={q.id} className="p-6 bg-white border rounded-xl shadow-sm relative">
             <span className="absolute -left-3 top-6 bg-slate-800 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
               {qIdx + 1}
             </span>
@@ -278,7 +301,7 @@ export default function QuizBuilder() {
                 >
                   <input
                     type="radio"
-                    name={`correct-${qIdx}`}
+                    name={`correct-${q.id}`}
                     checked={q.correct_option_index === oIdx}
                     onChange={() => updateQuestion(qIdx, 'correct_option_index', oIdx)}
                     className="mr-3 accent-emerald-600"
@@ -306,5 +329,17 @@ export default function QuizBuilder() {
         + Add Another Question
       </button>
     </div>
+  )
+}
+
+export default function EditQuizPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-4xl mx-auto p-8 text-center py-24">
+        <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-4xl">progress_activity</span>
+      </div>
+    }>
+      <EditQuizInner />
+    </Suspense>
   )
 }

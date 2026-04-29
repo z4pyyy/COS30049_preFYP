@@ -23,12 +23,23 @@ interface ModuleContentViewerProps {
   assets: Asset[]
   initialProgress: Progress | null
   quizId?: string | null
+  trackQuizUnlocked?: boolean   // Bug 3: all modules in track complete?
+  quizPassedAt?: string | null  // Bug 2: when did the guide pass the quiz?
 }
 
-export function ModuleContentViewer({ moduleId, content, assets, initialProgress, quizId }: ModuleContentViewerProps) {
+export function ModuleContentViewer({
+  moduleId,
+  content,
+  assets,
+  initialProgress,
+  quizId,
+  trackQuizUnlocked = false,
+  quizPassedAt = null,
+}: ModuleContentViewerProps) {
   const [progress, setProgress] = useState<Progress>(
     initialProgress ?? { assets_consumed: [], completed: false, completed_at: null }
   )
+  const [quizUnlocked, setQuizUnlocked] = useState(trackQuizUnlocked)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -57,7 +68,10 @@ export function ModuleContentViewer({ moduleId, content, assets, initialProgress
         body: JSON.stringify({ completed: true }),
       })
       const body = await res.json()
-      if (body.progress) setProgress(body.progress)
+      if (body.progress) {
+        setProgress(body.progress)
+        if (body.progress.completed && quizId) setQuizUnlocked(true)
+      }
       showToast(body.error ? `Error: ${body.error}` : 'Module marked as complete! Badge eligibility updated.')
     } finally {
       setSaving(false)
@@ -186,14 +200,26 @@ export function ModuleContentViewer({ moduleId, content, assets, initialProgress
 
       {/* Complete / Quiz Section */}
       <div className="bg-white rounded-2xl border border-[#e2e8f0] p-6">
-        {progress.completed ? (
+        {quizPassedAt ? (
+          // Bug 2: distinct "Quiz Completed" state (takes precedence over "Module Completed")
+          <div className="text-center">
+            <span className="material-symbols-outlined text-5xl text-[#2D6A3F] mb-2 block">workspace_premium</span>
+            <p className="text-lg font-bold text-[#1B3A24]">Quiz Completed</p>
+            <p className="text-sm text-[#64748b] mt-1">
+              Passed on {new Date(quizPassedAt).toLocaleDateString()}
+            </p>
+            <p className="text-xs text-[#8DC63F] font-bold uppercase tracking-widest mt-2">
+              Certified for this track
+            </p>
+          </div>
+        ) : progress.completed ? (
           <div className="text-center">
             <span className="material-symbols-outlined text-5xl text-[#8DC63F] mb-2 block">verified</span>
             <p className="text-lg font-bold text-[#1B3A24]">Module Completed!</p>
             <p className="text-sm text-[#64748b] mt-1">
               Completed on {new Date(progress.completed_at!).toLocaleDateString()}
             </p>
-            {quizId && (
+            {quizId && quizUnlocked ? (
               <a
                 href={`/quiz?quiz_id=${quizId}`}
                 className="mt-4 inline-flex items-center gap-2 bg-[#2D6A3F] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#1B3A24] transition"
@@ -201,7 +227,12 @@ export function ModuleContentViewer({ moduleId, content, assets, initialProgress
                 <span className="material-symbols-outlined">quiz</span>
                 Take Assessment Quiz
               </a>
-            )}
+            ) : quizId ? (
+              <p className="mt-4 inline-flex items-center gap-2 text-sm text-[#64748b] bg-[#f1f5f9] px-4 py-3 rounded-xl">
+                <span className="material-symbols-outlined text-sm">lock</span>
+                Complete this module to unlock the quiz
+              </p>
+            ) : null}
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">

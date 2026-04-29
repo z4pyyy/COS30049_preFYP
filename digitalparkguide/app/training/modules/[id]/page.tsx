@@ -21,11 +21,10 @@ export default async function ModuleDetailPage({ params }: PageProps) {
 
   if (!profile || !hasMinRole(profile.role as unknown as AppRole, 'GUIDE')) redirect('/unauthorized')
 
-  // Fetch module with track info
   const { data: module, error } = await supabase
     .from('training_modules')
     .select(`
-      id, title, description, content, order_index, duration_hours, is_active,
+      id, title, description, content, order_index, duration_hours, is_active, track_id,
       training_tracks ( id, title, tpa_name, track_type )
     `)
     .eq('id', id)
@@ -47,15 +46,39 @@ export default async function ModuleDetailPage({ params }: PageProps) {
     .select('assets_consumed, completed, completed_at')
     .eq('guide_id', user.id)
     .eq('module_id', id)
-    .single()
+    .maybeSingle()
 
-  // Check if there's a quiz for this module
+  // Module-scoped quiz: look up quiz linked to this module
   const { data: quiz } = await supabase
-    .from('quizzes')
-    .select('id')
-    .eq('module_id', id)
-    .single()
+    .from('quizzes').select('id').eq('module_id', id).maybeSingle()
 
+  // Quiz unlocks when THIS module is completed
+  let moduleQuizUnlocked = false
+  if (quiz) {
+    const { data: unlocked } = await supabase.rpc('module_quiz_unlocked', {
+      p_module: id,
+      p_user: user.id,
+    })
+    moduleQuizUnlocked = !!unlocked
+  }
+
+  // Bug 2: distinct "quiz passed" state.
+  let quizPassedAt: string | null = null
+  if (quiz) {
+    const { data: pass } = await supabase
+      .from('quiz_attempts')
+      .select('submitted_at')
+      .eq('quiz_id', quiz.id)
+      .eq('user_id', user.id)
+      .eq('passed', true)
+      .eq('status', 'submitted')
+      .order('submitted_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    quizPassedAt = pass?.submitted_at ?? null
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const track = (module.training_tracks as any)
 
   return (
@@ -106,6 +129,8 @@ export default async function ModuleDetailPage({ params }: PageProps) {
           assets={(assets as any[]) || []}
           initialProgress={progress ?? null}
           quizId={quiz?.id ?? null}
+          trackQuizUnlocked={moduleQuizUnlocked}
+          quizPassedAt={quizPassedAt}
         />
       </main>
     </div>

@@ -19,6 +19,13 @@ interface TrainingModule {
   training_tracks?: { id: string; title: string; tpa_name: string; track_type: string } | null
 }
 
+interface TrainingTrackLite {
+  id: string
+  title: string
+  tpa_name: string
+  track_type: string
+}
+
 interface ProgressRecord {
   module_id: string
   completed: boolean
@@ -76,15 +83,17 @@ export default async function GuideTrainingModulesPage({
     )
   }
 
-  // Fetch non-archived TPA names for enrolled tracks only (for filter dropdown)
-  const { data: enrolledTracks } = await supabase
+  // Fetch full track info for enrolled tracks (drives per-track section rendering)
+  const { data: enrolledTracksRaw } = await supabase
     .from('training_tracks')
-    .select('tpa_name')
+    .select('id, title, tpa_name, track_type')
     .in('id', [...enrolledTrackIds])
     .eq('is_archived', false)
     .order('tpa_name')
+    .order('title')
 
-  const availableTpas = Array.from(new Set((enrolledTracks || []).map(t => t.tpa_name).filter(Boolean)))
+  const enrolledTracks: TrainingTrackLite[] = (enrolledTracksRaw || []) as TrainingTrackLite[]
+  const availableTpas = Array.from(new Set(enrolledTracks.map(t => t.tpa_name).filter(Boolean)))
 
   // Fetch active, non-archived modules — only for enrolled tracks
   const { data: rawModules, error: modulesError } = await supabase
@@ -105,6 +114,12 @@ export default async function GuideTrainingModulesPage({
     (progressRecords || []).map(p => [p.module_id, p])
   )
 
+  // Fetch which modules have quizzes (for indicator badge)
+  const { data: quizModules } = await supabase
+    .from('quizzes')
+    .select('module_id')
+  const modulesWithQuiz = new Set((quizModules ?? []).map(q => q.module_id).filter(Boolean))
+
   if (modulesError) {
     return (
       <div className="min-h-screen bg-[#f8fafc] py-16 px-6">
@@ -118,23 +133,26 @@ export default async function GuideTrainingModulesPage({
 
   const modules = (rawModules as unknown as TrainingModule[]) || []
 
-  // Filter by TPA if selected
-  const filtered = tpaFilter
-    ? modules.filter(m => m.training_tracks?.tpa_name === tpaFilter)
-    : modules
+  // Group modules by track_id, seeding empty arrays for every enrolled track so
+  // tracks with zero published modules still render as a section.
+  const modulesByTrack: Record<string, TrainingModule[]> = Object.fromEntries(
+    enrolledTracks.map(t => [t.id, [] as TrainingModule[]])
+  )
+  for (const m of modules) {
+    ;(modulesByTrack[m.track_id] ??= []).push(m)
+  }
+  // Sort modules within each track by order_index
+  for (const trackId of Object.keys(modulesByTrack)) {
+    modulesByTrack[trackId].sort((a, b) => a.order_index - b.order_index)
+  }
 
-  // Group by TPA
-  const groupedByTpa = filtered.reduce<Record<string, TrainingModule[]>>((acc, module) => {
-    const tpa = module.training_tracks?.tpa_name || 'Unknown TPA'
-    ;(acc[tpa] ??= []).push(module)
-    return acc
-  }, {})
+  // Filter at the track level (not the module level) so per-track progress stays intact
+  const visibleTracks = tpaFilter
+    ? enrolledTracks.filter(t => t.tpa_name === tpaFilter)
+    : enrolledTracks
 
-  // Sequential lock: must complete previous module in same track
-  const byTrack = modules.reduce<Record<string, TrainingModule[]>>((acc, m) => {
-    ;(acc[m.track_id] ??= []).push(m)
-    return acc
-  }, {})
+  // Retain byTrack alias for isLocked below
+  const byTrack = modulesByTrack
 
   const isLocked = (module: TrainingModule): boolean => {
     if (module.order_index === 0) return false
@@ -154,10 +172,13 @@ export default async function GuideTrainingModulesPage({
   }
 
   // Overall progress per track
-  const trackProgress = Object.entries(byTrack).map(([trackId, mods]) => {
+  const progressForTrack = (trackId: string) => {
+    const mods = modulesByTrack[trackId] || []
     const completed = mods.filter(m => progressMap.get(m.id)?.completed).length
-    return { trackId, completed, total: mods.length }
-  })
+    const total = mods.length
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0
+    return { completed, total, pct }
+  }
 
   const statusBadge: Record<string, { label: string; cls: string; icon: string }> = {
     completed:   { label: 'Completed',   cls: 'bg-[#dcfce7] text-[#15803d]', icon: 'verified' },
@@ -189,15 +210,13 @@ export default async function GuideTrainingModulesPage({
           </div>
         </div>
 
-        {/* Track progress summary */}
-        {trackProgress.length > 0 && (
+        {/* Track progress summary — one chip per enrolled track */}
+        {enrolledTracks.length > 0 && (
           <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {trackProgress.map(({ trackId, completed, total }) => {
-              const track = modules.find(m => m.track_id === trackId)?.training_tracks
-              if (!track) return null
-              const pct = total > 0 ? Math.round((completed / total) * 100) : 0
+            {enrolledTracks.map(track => {
+              const { completed, total, pct } = progressForTrack(track.id)
               return (
-                <div key={trackId} className="bg-white rounded-2xl border border-[#e2e8f0] p-4">
+                <div key={track.id} className="bg-white rounded-2xl border border-[#e2e8f0] p-4">
                   <p className="text-xs text-[#8DC63F] font-bold uppercase tracking-wider mb-1">{track.tpa_name}</p>
                   <p className="font-bold text-[#1B3A24] text-sm mb-2 truncate">{track.title}</p>
                   <div className="flex items-center gap-2">
@@ -240,85 +259,116 @@ export default async function GuideTrainingModulesPage({
           </div>
         </form>
 
-        {Object.keys(groupedByTpa).length === 0 ? (
+        {visibleTracks.length === 0 ? (
           <div className="rounded-3xl bg-white p-12 shadow-lg text-center">
             <span className="material-symbols-outlined text-5xl text-[#cbd5e1] mb-4 block">school</span>
-            <h2 className="text-2xl font-bold text-[#1B3A24] mb-3">No modules found</h2>
-            <p className="text-[#64748b]">No active modules for the selected TPA.</p>
+            <h2 className="text-2xl font-bold text-[#1B3A24] mb-3">No tracks found</h2>
+            <p className="text-[#64748b]">No enrolled tracks for the selected TPA.</p>
           </div>
         ) : (
-          Object.entries(groupedByTpa).map(([tpa, tpaModules]) => (
-            <section key={tpa} className="mb-10">
-              <div className="mb-4 flex items-center gap-3">
-                <span className="material-symbols-outlined text-[#2D6A3F] text-3xl">landscape</span>
-                <div>
-                  <p className="text-sm uppercase tracking-[0.2em] text-[#8DC63F]">{tpa}</p>
-                  <h2 className="text-2xl font-bold text-[#1B3A24]">Modules for {tpa}</h2>
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                {tpaModules.map(module => {
-                  const status = getStatus(module.id)
-                  const locked = isLocked(module)
-                  const badge = statusBadge[status]
-
-                  return (
-                    <article
-                      key={module.id}
-                      className={`rounded-3xl border bg-white p-6 shadow-sm transition-all ${
-                        locked ? 'opacity-60 border-[#e2e8f0]' : 'border-[#e2e8f0] hover:shadow-md hover:border-[#8DC63F]'
-                      }`}
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          {locked && (
-                            <span className="material-symbols-outlined text-[#94a3b8] text-lg" title="Complete previous module first">lock</span>
-                          )}
-                          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${badge.cls}`}>
-                            <span className="material-symbols-outlined text-xs">{badge.icon}</span>
-                            {badge.label}
-                          </span>
-                        </div>
-                        <span className="rounded-full bg-[#e0f2fe] px-3 py-1 text-xs font-semibold text-[#0369a1]">
-                          {module.training_tracks?.title || 'Unknown Track'}
-                        </span>
+          visibleTracks.map(track => {
+            const trackModules = modulesByTrack[track.id] || []
+            const { completed, total, pct } = progressForTrack(track.id)
+            return (
+              <section key={track.id} className="mb-10">
+                <div className="mb-4 rounded-3xl bg-white border border-[#e2e8f0] p-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-[#2D6A3F] text-3xl">landscape</span>
+                      <div>
+                        <p className="text-sm uppercase tracking-[0.2em] text-[#8DC63F]">{track.tpa_name}</p>
+                        <h2 className="text-2xl font-bold text-[#1B3A24]">{track.title}</h2>
                       </div>
+                    </div>
+                    <div className="md:min-w-[240px]">
+                      <div className="flex items-center justify-between text-xs font-mono text-[#64748b] mb-1">
+                        <span>{completed}/{total} modules completed</span>
+                        <span>{pct}%</span>
+                      </div>
+                      <div className="h-2 bg-[#e2e8f0] rounded-full overflow-hidden">
+                        <div
+                          className="h-2 bg-[#2D6A3F] rounded-full transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {trackModules.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-[#cbd5e1] bg-white p-6 text-center">
+                    <p className="text-sm text-[#64748b]">No published modules yet for this track.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {trackModules.map(module => {
+                      const status = getStatus(module.id)
+                      const locked = isLocked(module)
+                      const badge = statusBadge[status]
 
-                      <h3 className="text-xl font-semibold text-[#1B3A24] mb-2">
-                        {module.order_index > 0 && (
-                          <span className="text-sm text-[#94a3b8] font-normal mr-1">#{module.order_index + 1}</span>
-                        )}
-                        {module.title}
-                      </h3>
-                      <p className="text-[#475569] leading-relaxed mb-4 line-clamp-2 text-sm">{module.description}</p>
-
-                      {module.duration_hours != null && (
-                        <p className="text-xs text-[#64748b] mb-4 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-xs">schedule</span>
-                          {module.duration_hours} hour{module.duration_hours === 1 ? '' : 's'}
-                        </p>
-                      )}
-
-                      {locked ? (
-                        <div className="inline-flex items-center gap-2 rounded-xl border border-[#e2e8f0] px-4 py-3 text-sm font-semibold text-[#94a3b8]">
-                          <span className="material-symbols-outlined text-sm">lock</span>
-                          Complete previous module first
-                        </div>
-                      ) : (
-                        <Link
-                          href={`/training/modules/${module.id}`}
-                          className="inline-flex items-center gap-2 rounded-xl bg-[#1B3A24] px-4 py-3 text-sm font-semibold text-white hover:bg-[#111827] transition"
+                      return (
+                        <article
+                          key={module.id}
+                          className={`rounded-3xl border bg-white p-6 shadow-sm transition-all ${
+                            locked ? 'opacity-60 border-[#e2e8f0]' : 'border-[#e2e8f0] hover:shadow-md hover:border-[#8DC63F]'
+                          }`}
                         >
-                          {status === 'completed' ? 'Review Module' : status === 'in_progress' ? 'Continue' : 'Start Module'}
-                          <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                        </Link>
-                      )}
-                    </article>
-                  )
-                })}
-              </div>
-            </section>
-          ))
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              {locked && (
+                                <span className="material-symbols-outlined text-[#94a3b8] text-lg" title="Complete previous module first">lock</span>
+                              )}
+                              <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${badge.cls}`}>
+                                <span className="material-symbols-outlined text-xs">{badge.icon}</span>
+                                {badge.label}
+                              </span>
+                            </div>
+                          </div>
+
+                          <h3 className="text-xl font-semibold text-[#1B3A24] mb-2">
+                            {module.order_index > 0 && (
+                              <span className="text-sm text-[#94a3b8] font-normal mr-1">#{module.order_index + 1}</span>
+                            )}
+                            {module.title}
+                          </h3>
+                          <p className="text-[#475569] leading-relaxed mb-4 line-clamp-2 text-sm">{module.description}</p>
+
+                          <div className="flex items-center gap-3 text-xs text-[#64748b] mb-4">
+                            {module.duration_hours != null && (
+                              <span className="flex items-center gap-1">
+                                <span className="material-symbols-outlined text-xs">schedule</span>
+                                {module.duration_hours} hour{module.duration_hours === 1 ? '' : 's'}
+                              </span>
+                            )}
+                            {modulesWithQuiz.has(module.id) && (
+                              <span className="flex items-center gap-1 text-[#2D6A3F] font-semibold">
+                                <span className="material-symbols-outlined text-xs">quiz</span>
+                                Quiz
+                              </span>
+                            )}
+                          </div>
+
+                          {locked ? (
+                            <div className="inline-flex items-center gap-2 rounded-xl border border-[#e2e8f0] px-4 py-3 text-sm font-semibold text-[#94a3b8]">
+                              <span className="material-symbols-outlined text-sm">lock</span>
+                              Complete previous module first
+                            </div>
+                          ) : (
+                            <Link
+                              href={`/training/modules/${module.id}`}
+                              className="inline-flex items-center gap-2 rounded-xl bg-[#1B3A24] px-4 py-3 text-sm font-semibold text-white hover:bg-[#111827] transition"
+                            >
+                              {status === 'completed' ? 'Review Module' : status === 'in_progress' ? 'Continue' : 'Start Module'}
+                              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                            </Link>
+                          )}
+                        </article>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            )
+          })
         )}
       </main>
     </div>

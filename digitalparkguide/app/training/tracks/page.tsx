@@ -19,6 +19,9 @@ interface TrainingTrack {
   is_open: boolean
   module_count: number
   price_myr: number
+  price_per_module: number | null
+  // Bug 9: derived = price_per_module * module_count, falling back to price_myr.
+  total_price_myr: number
 }
 
 interface Enrollment {
@@ -63,6 +66,13 @@ export default async function GuideTracksPage({
           { onConflict: 'guide_id,track_id' }
         )
         if (error) console.error('[stripe-redirect] enrollment upsert failed:', error.message)
+
+        // Bug 10: carry over completed modules from prior tracks
+        const { error: psErr } = await admin.rpc('presatisfy_track_modules', {
+          p_guide_id: guide_id,
+          p_track_id: track_id,
+        })
+        if (psErr) console.error('[stripe-redirect] presatisfy_track_modules failed:', psErr.message)
       }
     } catch (err) {
       console.error('[stripe-redirect] session verify failed:', err)
@@ -80,7 +90,7 @@ export default async function GuideTracksPage({
   // Fetch all active, non-archived tracks
   const { data: rawTracks } = await supabase
     .from('training_tracks')
-    .select('id, title, tpa_name, track_type, overview, duration_weeks, eligibility, is_open, price_myr')
+    .select('id, title, tpa_name, track_type, overview, duration_weeks, eligibility, is_open, price_myr, price_per_module')
     .eq('is_archived', false)
     .order('tpa_name')
     .order('title')
@@ -99,7 +109,13 @@ export default async function GuideTracksPage({
     return acc
   }, {})
 
-  tracks.forEach(t => { t.module_count = countMap[t.id] ?? 0 })
+  tracks.forEach(t => {
+    t.module_count = countMap[t.id] ?? 0
+    // Bug 9 — prefer HoD's per-module rate × module count; fallback to flat price_myr
+    t.total_price_myr = t.price_per_module != null
+      ? t.price_per_module * t.module_count
+      : (t.price_myr ?? 0)
+  })
 
   // Fetch guide's current enrollments
   const { data: enrollments } = await supabase
@@ -254,8 +270,12 @@ export default async function GuideTracksPage({
                       ) : (
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-sm font-bold text-[#1B3A24]">
-                            RM {track.price_myr.toLocaleString('en-MY')}
-                            <span className="text-xs font-normal text-[#94a3b8] ml-1">one-time</span>
+                            RM {track.total_price_myr.toLocaleString('en-MY')}
+                            <span className="text-xs font-normal text-[#94a3b8] ml-1">
+                              {track.price_per_module != null
+                                ? `${track.module_count} × RM ${track.price_per_module}`
+                                : 'one-time'}
+                            </span>
                           </span>
                           <EnrollButton trackId={track.id} enrolled={isEnrolled} />
                         </div>

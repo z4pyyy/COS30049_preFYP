@@ -3,15 +3,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface BadgeRecord {
   id: string
-  enrollment_id: string
   guide_id: string
-  guide_name: string
-  track_name: string
-  park_name: string
-  issued_at: string
+  track_id: string
+  issue_date: string
   renewal_due_at: string
   status: string
+  issued_by: string | null
+  notes: string
   created_at: string
+  training_tracks?: { title: string; tpa_name: string } | null
 }
 
 /**

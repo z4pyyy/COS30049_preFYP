@@ -51,9 +51,9 @@ function BadgeCard({ badge, dimmed = false }: { badge: BadgeRecord; dimmed?: boo
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[0.6875rem] font-bold uppercase tracking-widest text-on-surface-variant truncate">
-            {badge.park_name}
+            {badge.training_tracks?.tpa_name ?? '—'}
           </p>
-          <h3 className="text-lg font-black text-primary leading-tight">{badge.track_name}</h3>
+          <h3 className="text-lg font-black text-primary leading-tight">{badge.training_tracks?.title ?? '—'}</h3>
         </div>
         <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${pill.cls}`}>
           {pill.label}
@@ -62,7 +62,7 @@ function BadgeCard({ badge, dimmed = false }: { badge: BadgeRecord; dimmed?: boo
 
       <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
         <span className="font-semibold text-on-surface-variant">Issued</span>
-        <span className="text-on-surface-variant">{formatDate(badge.issued_at)}</span>
+        <span className="text-on-surface-variant">{formatDate(badge.issue_date)}</span>
 
         <span className={`font-semibold ${expiringSoon ? "text-amber-700" : "text-on-surface-variant"}`}>
           Renewal Due

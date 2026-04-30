@@ -74,6 +74,12 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
         label: 'My Group',
         active: pathname.startsWith('/dashboard/senior'),
       },
+      {
+        href: '/senior-guide/interviews',
+        icon: 'event',
+        label: 'Interviews',
+        active: pathname.startsWith('/senior-guide/interviews'),
+      },
     ] : []),
 
     { href: '/dashboard/guides', icon: 'explore', label: 'Guide Track', active: pathname.startsWith('/dashboard/guides') },
@@ -95,6 +101,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
       { href: '/dashboard/quiz-builder',        icon: 'edit_note',  label: 'Quiz Builder',      active: pathname === '/dashboard/quiz-builder' },
       { href: '/dashboard/quiz-builder/manage', icon: 'list_alt',   label: 'Quiz Management',   active: pathname.startsWith('/dashboard/quiz-builder/manage') },
       { href: '/dashboard/quiz-result',         icon: 'analytics',  label: 'Quiz Results',      active: pathname.startsWith('/dashboard/quiz-result') },
+      { href: '/dashboard/hod/certifications',  icon: 'workspace_premium', label: 'Certifications', active: pathname.startsWith('/dashboard/hod/certifications') },
     ] : []),
   ]
 

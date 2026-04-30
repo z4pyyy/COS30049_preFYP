@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { StatusPopup } from '@/components/StatusPopup'
+import ThemedSelect from '@/components/ThemedSelect'
 
 interface QuestionDraft {
   question_text: string
@@ -183,10 +184,9 @@ export default function QuizBuilder() {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold uppercase text-slate-400">Assign to Module *</label>
-          <select
-            className="border p-2 rounded focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+          <ThemedSelect
             value={moduleId}
-            onChange={e => setModuleId(e.target.value)}
+            onChange={v => setModuleId(v)}
           >
             <option value="">— Select a module —</option>
             {Object.entries(modulesByTpa).map(([tpa, mods]) => (
@@ -202,7 +202,7 @@ export default function QuizBuilder() {
                 ))}
               </optgroup>
             ))}
-          </select>
+          </ThemedSelect>
           {selectedModule && (
             <p className="text-xs text-emerald-600 mt-1">
               ✓ {selectedModule.tpa_name} · {selectedModule.track_title}

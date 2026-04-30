@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import ProfileDropdown from "@/components/ProfileDropdown";
+import NotificationBell from "@/components/NotificationBell";
 import type { AppRole } from "@/types/roles";
 
 type NavKey = "home" | "training" | "announcements" | "biodiversity" | "about";
@@ -102,13 +103,16 @@ export default function TopNavView({ active, authed, name, email, role, context 
                       Register as Guide
                     </Link>
                   ) : (
-                    <Link
-                      href={dashboardHref(role)}
-                      className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-base leading-none">dashboard</span>
-                      Dashboard
-                    </Link>
+                    <>
+                      <Link
+                        href={dashboardHref(role)}
+                        className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-base leading-none">dashboard</span>
+                        Dashboard
+                      </Link>
+                      <NotificationBell />
+                    </>
                   )}
                   <ProfileDropdown name={name ?? ""} email={email ?? ""} />
                 </>

@@ -10,6 +10,7 @@ import TrainingProgressWidget from "@/components/TrainingProgressWidget";
 import MyBadgesWidget from "@/components/MyBadgesWidget";
 import { GuideBadgesSection } from "@/components/GuideBadgesSection";
 import type { BadgeRecord } from "@/lib/badges/insert-badge";
+import ThemedSelect from "@/components/ThemedSelect";
 
 interface TrainingTrack {
   id: string
@@ -248,9 +249,9 @@ function DashboardContent() {
     try {
       const { data, error } = await supabase
         .from('guide_badges')
-        .select('*')
+        .select('*, training_tracks(title, tpa_name)')
         .eq('guide_id', uid)
-        .order('issued_at', { ascending: false })
+        .order('issue_date', { ascending: false })
       if (error) console.error('[badges] failed to load:', error.message)
       else setBadges((data ?? []) as BadgeRecord[])
     } finally {
@@ -684,16 +685,14 @@ function DashboardContent() {
 
           <div className="mb-6 flex items-center gap-3">
             <label className="text-sm font-semibold text-[#1B3A24]">Filter by Park Badge</label>
-            <select
+            <ThemedSelect
               value={selectedTpa}
-              onChange={(e) => setSelectedTpa(e.target.value)}
-              className="px-4 py-2 rounded-lg border border-[#cbd5e1] bg-white text-[#1B3A24]"
-            >
-              <option value="">All Park Badges</option>
-              {uniqueTpas.map((tpa) => (
-                <option key={tpa} value={tpa}>{tpa}</option>
-              ))}
-            </select>
+              onChange={v => setSelectedTpa(v)}
+              options={[
+                { value: '', label: 'All Park Badges' },
+                ...uniqueTpas.map(tpa => ({ value: tpa, label: tpa })),
+              ]}
+            />
           </div>
 
           {error && (

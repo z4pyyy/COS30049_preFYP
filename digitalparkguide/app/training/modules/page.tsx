@@ -240,16 +240,21 @@ export default async function GuideTrainingModulesPage({
         <form action="/training/modules" className="mb-8">
           <label className="block text-sm font-semibold text-[#1B3A24] mb-2">Filter by TPA</label>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <select
-              name="tpa"
-              defaultValue={tpaFilter}
-              className="w-full rounded-xl border border-[#cbd5e1] bg-white px-4 py-3 text-[#1B3A24]"
-            >
-              <option value="">All My TPAs</option>
-              {availableTpas.map(tpa => (
-                <option key={tpa} value={tpa}>{tpa}</option>
-              ))}
-            </select>
+            <div className="relative w-full">
+              <select
+                name="tpa"
+                defaultValue={tpaFilter}
+                className="appearance-none w-full pl-3 pr-8 py-2 text-sm bg-white border border-[#d1d9e0] rounded-lg font-medium text-[#1B3A24] hover:border-[#2D6A3F] focus:outline-none focus:border-[#2D6A3F] focus:ring-1 focus:ring-[#2D6A3F] transition-colors cursor-pointer"
+              >
+                <option value="">All My TPAs</option>
+                {availableTpas.map(tpa => (
+                  <option key={tpa} value={tpa}>{tpa}</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-base text-[#94a3b8] pointer-events-none">
+                expand_more
+              </span>
+            </div>
             <button
               type="submit"
               className="rounded-xl bg-[#2D6A3F] px-5 py-3 text-sm font-semibold text-white hover:bg-[#1B3A24] transition"

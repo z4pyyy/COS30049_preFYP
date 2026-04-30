@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { useToast } from "@/components/ui/Toast";
 import TopNavClient from "@/components/TopNavClient";
+import ThemedSelect from "@/components/ThemedSelect";
 
 const SPECIAL_CHAR_RE = /[<>{}[\]|\\^~#$%]/;
 function hasSpecialChars(v: string) { return SPECIAL_CHAR_RE.test(v); }
@@ -251,15 +252,12 @@ export default function ApplyGuidePage() {
             </Field>
             <Field label="Phone">
               <div className="flex gap-2">
-                <select
+                <ThemedSelect
                   value={countryCode}
-                  onChange={e => setCountryCode(e.target.value)}
-                  className="bg-white border border-gray-200 rounded-xl py-3 px-3 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer shrink-0"
-                >
-                  {COUNTRY_CODES.map(c => (
-                    <option key={c.code} value={c.code}>{c.label}</option>
-                  ))}
-                </select>
+                  onChange={v => setCountryCode(v)}
+                  options={COUNTRY_CODES.map(c => ({ value: c.code, label: c.label }))}
+                  className="shrink-0"
+                />
                 <input
                   type="tel"
                   value={phone}
@@ -285,10 +283,14 @@ export default function ApplyGuidePage() {
               <p className="text-sm text-gray-500">Which TPA do you want to serve?</p>
             </div>
             <Field label="Totally Protected Area" required>
-              <select value={tpaName} onChange={e => { setTpaName(e.target.value); setTrackId(""); }} className={SELECT}>
-                <option value="">— Select a park —</option>
-                {tpaOptions.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <ThemedSelect
+                value={tpaName}
+                onChange={v => { setTpaName(v); setTrackId(""); }}
+                options={[
+                  { value: '', label: '— Select a park —' },
+                  ...tpaOptions.map(t => ({ value: t, label: t })),
+                ]}
+              />
             </Field>
             {tpaName && (
               <Field label="Preferred Certification Track">
@@ -505,7 +507,6 @@ export default function ApplyGuidePage() {
 // ── Shared sub-components ──────────────────────────────────────────
 
 const INPUT = "w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm font-medium placeholder:text-gray-400 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all";
-const SELECT = "w-full bg-white border border-gray-200 rounded-xl py-3 px-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all cursor-pointer";
 
 function SpecialCharWarning() {
   return (

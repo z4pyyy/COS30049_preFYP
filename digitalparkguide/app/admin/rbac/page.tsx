@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ROLE_LABELS, ROLE_HIERARCHY, type AppRole } from "@/types/roles";
+import ThemedSelect from "@/components/ThemedSelect";
 
 type PageAccess = {
   id: string;
@@ -190,32 +191,29 @@ export default function RbacPage() {
                         <span className="text-[0.6875rem] text-on-surface-variant font-medium whitespace-nowrap hidden sm:block">
                           Apply to all:
                         </span>
-                        <select
-                          className="text-xs bg-surface-container-high rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-primary/20 font-semibold cursor-pointer"
+                        <ThemedSelect
                           value=""
-                          onChange={async (e) => {
-                            const val = e.target.value;
-                            if (!val) return;
-                            if (val === "DISABLE") {
+                          onChange={async (v) => {
+                            if (!v) return;
+                            if (v === "DISABLE") {
                               await bulkUpdateGroup(group.name, { is_disabled: true });
-                            } else if (val === "ENABLE") {
+                            } else if (v === "ENABLE") {
                               await bulkUpdateGroup(group.name, { is_disabled: false });
                             } else {
-                              await bulkUpdateGroup(group.name, { min_role: val as AppRole, is_disabled: false });
+                              await bulkUpdateGroup(group.name, { min_role: v as AppRole, is_disabled: false });
                             }
-                            e.target.value = "";
                           }}
                         >
                           <option value="">Bulk action…</option>
-                          <option value="DISABLE">🚫 Disable all</option>
-                          <option value="ENABLE">✅ Enable all</option>
+                          <option value="DISABLE">Disable all</option>
+                          <option value="ENABLE">Enable all</option>
                           <option disabled>──────────</option>
                           {ROLES_ASC.map((r) => (
                             <option key={r} value={r}>
                               Require {ROLE_LABELS[r]}+
                             </option>
                           ))}
-                        </select>
+                        </ThemedSelect>
                       </div>
                     )}
                   </div>
@@ -305,20 +303,14 @@ export default function RbacPage() {
                               </button>
 
                               {/* Min role selector */}
-                              <select
+                              <ThemedSelect
                                 value={page.min_role}
                                 disabled={saving === page.id || page.is_disabled}
-                                onChange={(e) =>
-                                  updatePage(page.id, { min_role: e.target.value as AppRole })
+                                onChange={(v) =>
+                                  updatePage(page.id, { min_role: v as AppRole })
                                 }
-                                className="text-xs bg-surface-container-high rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-primary/20 font-semibold disabled:opacity-40 cursor-pointer"
-                              >
-                                {ROLES_ASC.map((r) => (
-                                  <option key={r} value={r}>
-                                    {ROLE_LABELS[r]}+
-                                  </option>
-                                ))}
-                              </select>
+                                options={ROLES_ASC.map(r => ({ value: r, label: `${ROLE_LABELS[r]}+` }))}
+                              />
 
                               {saving === page.id && (
                                 <span className="material-symbols-outlined animate-spin text-primary text-base">

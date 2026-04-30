@@ -40,6 +40,7 @@ export const PROTECTED_ROUTES: Array<{ prefix: string; minRole: AppRole }> = [
   { prefix: '/admin',            minRole: 'SUPERADMIN' },
   { prefix: '/dashboard/admin',  minRole: 'SUPERADMIN' },
   { prefix: '/dashboard/hod',    minRole: 'HOD' },
+  { prefix: '/senior-guide',     minRole: 'SENIOR_GUIDE' },
   { prefix: '/dashboard',        minRole: 'GUIDE' },
 ]
 

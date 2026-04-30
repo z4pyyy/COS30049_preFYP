@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import ThemedSelect from '@/components/ThemedSelect'
 
 type Block =
   | { type: 'h1' | 'h2' | 'h3' | 'paragraph'; text: string }
@@ -260,13 +261,11 @@ export default function AnnouncementsPage() {
               placeholder="Announcement title"
               className="px-4 py-2.5 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2D6A3F] text-lg font-semibold"
             />
-            <select
+            <ThemedSelect
               value={draft.category}
-              onChange={e => setDraft(d => ({ ...d, category: e.target.value }))}
-              className="px-4 py-2.5 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2D6A3F]"
-            >
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+              onChange={v => setDraft(d => ({ ...d, category: v }))}
+              options={CATEGORIES.map(c => ({ value: c, label: c }))}
+            />
           </div>
 
           {/* Block toolbar */}

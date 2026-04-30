@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ROLE_LABELS, type AppRole } from "@/types/roles";
+import ThemedSelect from "@/components/ThemedSelect";
 
 type Profile = {
   id: string;
@@ -241,16 +242,12 @@ export default function UsersPage() {
                         <span className="text-[0.6875rem] text-on-surface-variant italic">Protected</span>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <select
+                          <ThemedSelect
                             defaultValue={profile.role}
                             disabled={saving === profile.id}
-                            onChange={(e) => handleRoleChange(profile.id, e.target.value as AppRole)}
-                            className="text-xs bg-surface-container-high rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-primary/20 font-semibold disabled:opacity-50 cursor-pointer"
-                          >
-                            {ASSIGNABLE_ROLES.map((r) => (
-                              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                            ))}
-                          </select>
+                            onChange={(v) => handleRoleChange(profile.id, v as AppRole)}
+                            options={ASSIGNABLE_ROLES.map(r => ({ value: r, label: ROLE_LABELS[r] }))}
+                          />
                           {saving === profile.id && (
                             <span className="material-symbols-outlined animate-spin text-primary text-base">progress_activity</span>
                           )}

@@ -3,6 +3,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import ThemedSelect from '@/components/ThemedSelect'
 import { RichTextEditor } from './RichTextEditor'
 import { ModuleMediaUploader } from './ModuleMediaUploader'
 import { ModuleAssetsDisplay } from './ModuleAssetsDisplay'
@@ -186,19 +187,15 @@ export function ModuleEditorForm({
           <label className="block text-sm font-semibold text-[#1B3A24] mb-2">
             Training Track <span className="text-red-500">*</span>
           </label>
-          <select
+          <ThemedSelect
             value={formData.track_id}
-            onChange={handleTpaChange}
+            onChange={v => handleTpaChange({ target: { value: v } } as React.ChangeEvent<HTMLSelectElement>)}
             disabled={isLoading}
-            className="w-full px-4 py-2.5 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2D6A3F] focus:border-transparent bg-white text-[#1B3A24]"
-          >
-            <option value="">Select a training track...</option>
-            {trainingTracks.map((track) => (
-              <option key={track.id} value={track.id}>
-                {track.title} ({track.tpa_name})
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'Select a training track...' },
+              ...trainingTracks.map(track => ({ value: track.id, label: `${track.title} (${track.tpa_name})` })),
+            ]}
+          />
           <p className="text-xs text-[#64748b] mt-1">
             Select the certification track for this module
           </p>
@@ -237,17 +234,15 @@ export function ModuleEditorForm({
       {trainingTracks.filter(t => t.id !== formData.track_id && !formData.additional_track_ids.includes(t.id)).length > 0 && (
         <div>
           <label className="block text-sm font-semibold text-[#1B3A24] mb-2">Add Another TPA <span className="text-gray-400 font-normal">(optional)</span></label>
-          <select
+          <ThemedSelect
             value=""
-            onChange={e => { if (e.target.value) setFormData(prev => ({ ...prev, additional_track_ids: [...prev.additional_track_ids, e.target.value] })) }}
+            onChange={v => { if (v) setFormData(prev => ({ ...prev, additional_track_ids: [...prev.additional_track_ids, v] })) }}
             disabled={isLoading}
-            className="w-full px-4 py-2.5 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2D6A3F] bg-white text-[#1B3A24]"
-          >
-            <option value="">— Select an additional track —</option>
-            {trainingTracks.filter(t => t.id !== formData.track_id && !formData.additional_track_ids.includes(t.id)).map(t => (
-              <option key={t.id} value={t.id}>{t.tpa_name}</option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: '— Select an additional track —' },
+              ...trainingTracks.filter(t => t.id !== formData.track_id && !formData.additional_track_ids.includes(t.id)).map(t => ({ value: t.id, label: t.tpa_name })),
+            ]}
+          />
         </div>
       )}
 

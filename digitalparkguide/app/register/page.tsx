@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,6 +14,7 @@ function friendlyError(raw: string): string {
 
 export default function RegisterPage() {
   const supabase = createClient();
+  const router = useRouter();
 
   const [fullName,     setFullName]     = useState("");
   const [email,        setEmail]        = useState("");
@@ -34,24 +36,33 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true); setError(null);
 
-    // Block if email already linked to social provider
+    // Check if email already linked to a provider
     const { data: provider } = await supabase.rpc("get_user_provider", { p_email: email });
     if (provider && provider !== "email") {
       setError("This email is linked to a Google account. Please use 'Continue with Google'.");
       setLoading(false); return;
     }
 
+    const existingUser = !!provider;
+
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: true,
-        data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/auth/callback?full_name=${encodeURIComponent(fullName)}`,
+        shouldCreateUser: !existingUser,
+        data: existingUser ? undefined : { full_name: fullName },
+        emailRedirectTo: existingUser
+          ? undefined
+          : `${window.location.origin}/auth/callback?full_name=${encodeURIComponent(fullName)}`,
       },
     });
 
     setLoading(false);
     if (error) { setError(friendlyError(error.message)); return; }
+
+    if (existingUser) {
+      router.push(`/verify-otp?email=${encodeURIComponent(email)}&existing=1`);
+      return;
+    }
     setSuccess(true);
   }
 

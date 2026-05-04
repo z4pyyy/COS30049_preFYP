@@ -62,6 +62,10 @@ function LoginForm() {
       }
       return;
     }
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && !user.user_metadata?.has_password) {
+      await supabase.auth.updateUser({ data: { has_password: true } });
+    }
     showToast("Signed in successfully. Welcome back!", "success");
     setTimeout(() => { router.push(next); router.refresh(); }, 1000);
   }

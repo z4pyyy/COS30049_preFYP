@@ -10,8 +10,9 @@ const OTP_LENGTH = 8;
 function VerifyOtpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") ?? "";
-  const next  = searchParams.get("next")  ?? "/";
+  const email    = searchParams.get("email") ?? "";
+  const next     = searchParams.get("next")  ?? "/";
+  const existing = searchParams.get("existing") === "1";
 
   const [digits,    setDigits]    = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [loading,   setLoading]   = useState(false);
@@ -57,20 +58,6 @@ function VerifyOtpForm() {
     const { data: verifyData, error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
     setLoading(false);
 
-    if (!error && verifyData?.user) {
-      const metaName = (verifyData.user.user_metadata?.full_name ?? "").trim();
-      if (metaName) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", verifyData.user.id)
-          .single();
-        if (!profile?.full_name) {
-          await supabase.from("profiles").upsert({ id: verifyData.user.id, full_name: metaName });
-        }
-      }
-    }
-
     if (error) {
       if (error.message.includes("expired") || error.message.includes("Otp has expired")) {
         setError("This code has expired. Request a new one below.");
@@ -82,6 +69,35 @@ function VerifyOtpForm() {
       setDigits(Array(OTP_LENGTH).fill(""));
       inputRefs.current[0]?.focus();
       return;
+    }
+
+    if (verifyData?.user) {
+      const user = verifyData.user;
+      const metaName = (user.user_metadata?.full_name ?? "").trim();
+      if (metaName) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        if (!profile?.full_name) {
+          await supabase.from("profiles").upsert({ id: user.id, full_name: metaName });
+        }
+      }
+
+      const hasPassword = user.user_metadata?.has_password === true;
+      if (!hasPassword) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        const role = profile?.role as string | null;
+        if (role !== "HOD" && role !== "SUPERADMIN") {
+          router.push("/set-password");
+          return;
+        }
+      }
     }
 
     router.push(next);
@@ -145,6 +161,13 @@ function VerifyOtpForm() {
               <span className="text-on-surface font-bold">{email || "your email"}</span>
             </p>
           </div>
+
+          {existing && (
+            <div className="mb-6 flex items-start gap-3 bg-tertiary-container text-on-tertiary-container rounded-xl px-4 py-3 text-sm font-medium">
+              <span className="material-symbols-outlined text-base mt-0.5">info</span>
+              You already have an account under this email. Use the code we sent to sign in instead.
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 flex items-start gap-3 bg-error-container text-on-error-container rounded-xl px-4 py-3 text-sm font-medium">

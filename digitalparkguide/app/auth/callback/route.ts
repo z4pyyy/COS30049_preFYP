@@ -13,15 +13,31 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // If full_name was passed (registration flow), save it to the profile
-      if (fullName) {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (user) {
+        // If full_name was passed (registration flow), save it to the profile
+        if (fullName) {
           await supabase
             .from('profiles')
             .upsert({ id: user.id, full_name: fullName })
         }
+
+        // Redirect to set-password if user has no password (exclude HOD & SUPERADMIN)
+        const hasPassword = user.user_metadata?.has_password === true
+        if (!hasPassword) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', user.id)
+            .single()
+          const role = profile?.role as string | null
+          if (role !== 'HOD' && role !== 'SUPERADMIN') {
+            return NextResponse.redirect(`${origin}/set-password`)
+          }
+        }
       }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
 

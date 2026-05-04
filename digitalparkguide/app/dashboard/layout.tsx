@@ -26,6 +26,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .single()
 
   const role = (profile?.role ?? null) as AppRole | null
+
+  const hasPassword = user.user_metadata?.has_password === true
+  if (!hasPassword && role !== 'SUPERADMIN' && role !== 'HOD') {
+    redirect('/set-password')
+  }
   const context = contextLabelFor(role)
   const fullName = profile?.full_name || user.email || 'Guide'
   const initials = fullName

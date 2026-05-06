@@ -30,5 +30,24 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ rows: data ?? [] })
+  const guideIds = (data ?? []).map(r => r.guide_id)
+  let certsByGuide: Record<string, { id: string; stage: string; tpa_name: string }[]> = {}
+  if (guideIds.length > 0) {
+    const { data: certs } = await admin
+      .from('guide_track_certifications')
+      .select('id, guide_id, stage, tpa_name')
+      .in('guide_id', guideIds)
+      .not('stage', 'eq', 'REJECTED')
+    for (const c of certs ?? []) {
+      if (!certsByGuide[c.guide_id]) certsByGuide[c.guide_id] = []
+      certsByGuide[c.guide_id].push({ id: c.id, stage: c.stage, tpa_name: c.tpa_name })
+    }
+  }
+
+  const rows = (data ?? []).map(r => ({
+    ...r,
+    certifications: certsByGuide[r.guide_id] ?? [],
+  }))
+
+  return NextResponse.json({ rows })
 }

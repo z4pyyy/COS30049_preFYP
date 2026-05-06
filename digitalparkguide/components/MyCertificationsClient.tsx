@@ -7,7 +7,6 @@ export interface CertificationRow {
   tpa_name: string
   stage: string
   paid_at: string | null
-  amount_cents: number | null
   modules_completed_at: string | null
   quiz_attempt_id: string | null
   quiz_passed_at: string | null

@@ -50,7 +50,7 @@ export default function SeniorInterviewsPage() {
       .from('guide_track_certifications')
       .select('id, guide_id, tpa_name, stage, quiz_passed_at, interview_date, interview_time, interview_location, resit_count, training_tracks(title)')
       .in('guide_id', guideIds)
-      .in('stage', ['QUIZZES_PASSED', 'PENDING_INTERVIEW'])
+      .in('stage', ['PENDING_INTERVIEW'])
       .order('created_at', { ascending: false })
 
     const mapped: CertRow[] = (certs ?? []).map((c: Record<string, unknown>) => {
@@ -129,7 +129,7 @@ export default function SeniorInterviewsPage() {
     load()
   }
 
-  const needsScheduling = rows.filter(r => r.stage === 'QUIZZES_PASSED' || (r.stage === 'PENDING_INTERVIEW' && !r.interview_date))
+  const needsScheduling = rows.filter(r => r.stage === 'PENDING_INTERVIEW' && !r.interview_date)
   const scheduled = rows.filter(r => r.stage === 'PENDING_INTERVIEW' && r.interview_date)
 
   return (

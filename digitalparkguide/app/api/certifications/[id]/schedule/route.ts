@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { sendCertInterviewScheduledEmail } from '@/lib/email'
 
 interface RouteParams { params: Promise<{ id: string }> }
@@ -25,15 +26,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
   try {
-    const { data: cert } = await supabase
+    const admin = createAdminClient()
+    const { data: cert } = await admin
       .from('guide_track_certifications')
       .select('guide_id, tpa_name, training_tracks(title)')
       .eq('id', certId)
       .single()
 
     if (cert) {
-      const { data: guideAuth } = await supabase.auth.admin.getUserById(cert.guide_id)
-      const { data: guideProfile } = await supabase
+      const { data: guideAuth } = await admin.auth.admin.getUserById(cert.guide_id)
+      const { data: guideProfile } = await admin
         .from('profiles')
         .select('full_name')
         .eq('id', cert.guide_id)

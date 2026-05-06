@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
-// generateCertificate and sendCertificateEmail are kept for use by the
-// HoD's issue_tpa_badge action (B7.2/B7.3). Not called from the webhook.
-import { generateCertificate } from '@/lib/badges/generate-certificate'
-import { sendCertificateEmail } from '@/lib/badges/send-certificate-email'
 import type Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -37,7 +33,11 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient()
 
-    // Upsert enrollment — idempotent if webhook fires more than once
+    const paymentIntent = typeof session.payment_intent === 'string' ? session.payment_intent : null
+    const amountCents = session.amount_total ?? 0
+    const currency = session.currency?.toUpperCase() ?? 'MYR'
+
+    // Upsert enrollment with full Stripe payment details
     const { error } = await supabase
       .from('guide_track_enrollments')
       .upsert(
@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
           status: 'active',
           payment_status: 'paid',
           stripe_session_id: session.id,
+          stripe_payment_intent: paymentIntent,
+          amount_cents: amountCents,
+          currency,
           paid_at: new Date().toISOString(),
         },
         { onConflict: 'guide_id,track_id' }
@@ -97,23 +100,23 @@ export async function POST(req: NextRequest) {
       certId = newCert.id
     }
 
-    // Short-circuit on retry: cert already moved past AWAITING_PAYMENT.
-    const skipRpc = existingCert !== null && existingCert.stage !== 'AWAITING_PAYMENT'
-
-    if (!skipRpc) {
-      const { error: rpcError } = await supabase.rpc('mark_payment_received', {
-        p_cert_id:               certId,
-        p_stripe_session_id:     session.id,
-        p_stripe_payment_intent: typeof session.payment_intent === 'string' ? session.payment_intent : null,
-        p_amount_cents:          session.amount_total ?? 0,
-        p_currency:              session.currency ?? null,
+    // Phase 1: advance AWAITING_PAYMENT → PAID (fires fn_advance_paid_cert trigger)
+    await supabase
+      .from('guide_track_certifications')
+      .update({
+        stage: 'PAID',
+        paid_at: new Date().toISOString(),
       })
+      .eq('id', certId)
+      .eq('stage', 'AWAITING_PAYMENT')
 
-      if (rpcError) {
-        console.error('[stripe webhook] mark_payment_received failed:', rpcError.message)
-        return NextResponse.json({ error: rpcError.message }, { status: 500 })
-      }
-    }
+    // Phase 2: stamp stripe_session_id unconditionally
+    await supabase
+      .from('guide_track_certifications')
+      .update({
+        stripe_session_id: session.id,
+      })
+      .eq('id', certId)
   }
 
   return NextResponse.json({ received: true })

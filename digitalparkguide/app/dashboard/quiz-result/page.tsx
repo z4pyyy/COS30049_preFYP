@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import type { AppRole } from '@/types/roles'
+import { hasMinRole } from '@/types/roles'
 
 interface AttemptRow {
   id: string
@@ -46,65 +47,36 @@ function computeStats(scores: number[]) {
 }
 
 export default function QuizResultsPage() {
-  const supabase = createClient()
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<AttemptRow[]>([])
   const [tpaFilter, setTpaFilter] = useState<string>('all')
+  const [role, setRole] = useState<AppRole>('GUIDE')
 
   useEffect(() => {
     let cancelled = false
     async function load() {
-      const { data, error } = await supabase
-        .from('quiz_attempts')
-        .select(`
-          id, user_id, quiz_id, score, passed, attempt_number,
-          time_taken_seconds, status, started_at, submitted_at,
-          profiles:user_id ( full_name ),
-          quizzes ( title, passing_score, module_id,
-            training_modules:module_id ( title, training_tracks ( tpa_name ) )
-          )
-        `)
-        .in('status', ['submitted', 'expired'])
-        .order('submitted_at', { ascending: false, nullsFirst: false })
-        .limit(1000)
-
-      if (!cancelled && !error) {
-        const mapped: AttemptRow[] = (data ?? []).map((r: Record<string, unknown>) => {
-          const profiles = r.profiles as { full_name: string | null } | null
-          const quizzes = r.quizzes as {
-            title: string
-            passing_score: number
-            module_id: string | null
-            training_modules: {
-              title: string
-              training_tracks: { tpa_name: string } | null
-            } | null
-          } | null
-          return {
-            id: r.id as string,
-            user_id: r.user_id as string,
-            quiz_id: r.quiz_id as string,
-            score: r.score as number,
-            passed: r.passed as boolean,
-            attempt_number: r.attempt_number as number,
-            time_taken_seconds: r.time_taken_seconds as number | null,
-            status: r.status as AttemptRow['status'],
-            started_at: r.started_at as string,
-            submitted_at: r.submitted_at as string | null,
-            guide_name: profiles?.full_name || (r.user_id as string).slice(0, 8),
-            quiz_title: quizzes?.title || '—',
-            module_title: quizzes?.training_modules?.title || '—',
-            tpa_name: quizzes?.training_modules?.training_tracks?.tpa_name || 'Unassigned',
-            passing_score: quizzes?.passing_score ?? 80,
-          }
-        })
-        setRows(mapped)
+      try {
+        const res = await fetch('/api/quiz-results', { cache: 'no-store' })
+        const body = await res.json()
+        if (!res.ok) throw new Error(body.error || 'Failed to load')
+        if (cancelled) return
+        setRows(body.rows ?? [])
+        if (body.role) setRole(body.role as AppRole)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Load failed')
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      if (!cancelled) setLoading(false)
     }
     load()
     return () => { cancelled = true }
-  }, [supabase])
+  }, [])
+
+  const isHod = hasMinRole(role, 'HOD')
+  const isSenior = role === 'SENIOR_GUIDE'
+  const isGuide = role === 'GUIDE'
+  const showGuideColumn = !isGuide
 
   const tpaNames = useMemo(() => {
     const set = new Set(rows.map(r => r.tpa_name))
@@ -129,8 +101,8 @@ export default function QuizResultsPage() {
       const guideScores = new Map<string, number>()
       const guidePassed = new Map<string, boolean>()
       for (const a of attempts) {
-        const prev = guideScores.get(a.user_id) ?? 0
-        if (a.score > prev) guideScores.set(a.user_id, a.score)
+        const prev = guideScores.get(a.user_id)
+        if (prev === undefined || a.score > prev) guideScores.set(a.user_id, a.score)
         if (a.passed) guidePassed.set(a.user_id, true)
       }
       const scores = Array.from(guideScores.values())
@@ -174,15 +146,31 @@ export default function QuizResultsPage() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-sm text-red-700">{error}</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fafc] p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div>
           <p className="text-xs uppercase tracking-widest text-[#8DC63F] font-bold">Results</p>
-          <h1 className="text-3xl font-black text-[#1B3A24] mt-1">Quiz Results</h1>
+          <h1 className="text-3xl font-black text-[#1B3A24] mt-1">
+            {isGuide ? 'My Quiz Results' : 'Quiz Results'}
+          </h1>
           <p className="text-sm text-[#64748b] mt-1">
-            Guide quiz performance grouped by TPA. Shows best-score statistics per park.
+            {isHod
+              ? 'All guide quiz performance grouped by TPA. Best-score statistics per park.'
+              : isSenior
+                ? 'Your group\'s quiz performance grouped by TPA. Best-score statistics per park.'
+                : 'Your quiz performance grouped by TPA. Best-score statistics per park.'}
           </p>
         </div>
 
@@ -253,7 +241,7 @@ export default function QuizResultsPage() {
                   <table className="w-full">
                     <thead>
                       <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
-                        <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Guide</th>
+                        {showGuideColumn && <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Guide</th>}
                         <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Best Score</th>
                         <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Avg Score</th>
                         <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Attempts</th>
@@ -263,7 +251,7 @@ export default function QuizResultsPage() {
                     <tbody>
                       {guides.map((g, idx) => (
                         <tr key={g.user_id} className={`border-b border-[#e2e8f0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]'}`}>
-                          <td className="px-5 py-3 text-sm font-semibold text-[#1B3A24]">{g.guide_name}</td>
+                          {showGuideColumn && <td className="px-5 py-3 text-sm font-semibold text-[#1B3A24]">{g.guide_name}</td>}
                           <td className="px-5 py-3">
                             <span className={`text-sm font-black ${g.passed ? 'text-emerald-700' : 'text-red-700'}`}>
                               {g.best_score}%

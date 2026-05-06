@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { stripe } from '@/lib/stripe'
 
 export async function POST(req: NextRequest) {
@@ -44,6 +45,29 @@ export async function POST(req: NextRequest) {
   const priceSen = totalMyr * 100
 
   const origin = req.headers.get('origin') ?? 'http://localhost:3000'
+
+  // Create cert row at AWAITING_PAYMENT before redirecting to Stripe.
+  // Webhook will advance to PAID on success. If user abandons checkout,
+  // row stays at AWAITING_PAYMENT — visible in Badge Track for HoD.
+  const admin = createAdminClient()
+  const { data: existingCert } = await admin
+    .from('guide_track_certifications')
+    .select('id')
+    .eq('guide_id', user.id)
+    .eq('track_id', trackId)
+    .neq('stage', 'REJECTED')
+    .maybeSingle()
+
+  if (!existingCert) {
+    await admin
+      .from('guide_track_certifications')
+      .insert({
+        guide_id: user.id,
+        track_id: trackId,
+        tpa_name: track.tpa_name,
+        stage: 'AWAITING_PAYMENT',
+      })
+  }
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',

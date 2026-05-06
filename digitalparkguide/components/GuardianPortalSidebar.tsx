@@ -82,26 +82,25 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
       },
     ] : []),
 
-    { href: '/dashboard/guides', icon: 'explore', label: 'Guide Track', active: pathname.startsWith('/dashboard/guides') },
     { href: '/dashboard/tracks', icon: 'trophy',  label: 'Tracks',      active: pathname.startsWith('/dashboard/tracks') },
 
     // Guides + Seniors see their learning modules
     ...(!isHod ? [
       { href: '/training/modules', icon: 'school', label: 'Training Modules', active: pathname.startsWith('/training/modules') },
       { href: '/dashboard/my-certifications', icon: 'workspace_premium', label: 'My Certifications', active: pathname.startsWith('/dashboard/my-certifications') },
+      { href: '/dashboard/quiz-result', icon: 'analytics', label: 'Quiz Results', active: pathname.startsWith('/dashboard/quiz-result') },
     ] : []),
 
     // HoD admin tools
     ...(isHod ? [
       { href: '/dashboard?action=modules',      icon: 'school',     label: 'Training Modules', active: action === 'modules' || action === 'edit' || action === 'new' },
       { href: '/dashboard?action=applications', icon: 'person_add', label: 'Applications',      active: action === 'applications' },
-      // Task 3 — HoD reassign UI lives here
+      { href: '/dashboard/hod/badge-track',     icon: 'workspace_premium', label: 'Badge Track', active: pathname.startsWith('/dashboard/hod/badge-track') },
       { href: '/dashboard/hod/groups',          icon: 'groups',     label: 'Guide Groups',      active: pathname.startsWith('/dashboard/hod/groups') },
       { href: '/dashboard/hod/announcements',   icon: 'campaign',   label: 'Announcements',     active: pathname.startsWith('/dashboard/hod/announcements') },
       { href: '/dashboard/quiz-builder',        icon: 'edit_note',  label: 'Quiz Builder',      active: pathname === '/dashboard/quiz-builder' },
       { href: '/dashboard/quiz-builder/manage', icon: 'list_alt',   label: 'Quiz Management',   active: pathname.startsWith('/dashboard/quiz-builder/manage') },
       { href: '/dashboard/quiz-result',         icon: 'analytics',  label: 'Quiz Results',      active: pathname.startsWith('/dashboard/quiz-result') },
-      { href: '/dashboard/hod/certifications',  icon: 'workspace_premium', label: 'Certifications', active: pathname.startsWith('/dashboard/hod/certifications') },
     ] : []),
   ]
 

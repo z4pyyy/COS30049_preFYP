@@ -32,6 +32,15 @@ interface HodStats {
   stalled_guides: number
 }
 
+interface GroupStats {
+  senior_id: string
+  senior_name: string
+  guides: number
+  enrollments: number
+  avg_completion_pct: number
+  stalled: number
+}
+
 interface Props {
   mode: 'guide' | 'hod'
 }
@@ -41,6 +50,7 @@ export default function TrainingProgressWidget({ mode }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<GuideRow[]>([])
   const [stats, setStats] = useState<HodStats | null>(null)
+  const [groups, setGroups] = useState<GroupStats[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -56,6 +66,7 @@ export default function TrainingProgressWidget({ mode }: Props) {
         if (cancelled) return
         setRows(body.rows ?? [])
         setStats(body.stats ?? null)
+        setGroups(body.groups ?? [])
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Load failed')
       } finally {
@@ -199,6 +210,54 @@ export default function TrainingProgressWidget({ mode }: Props) {
         <KpiCard label="Needs Attention"     value={stats.stalled_guides.toString()}
                  tone={stats.stalled_guides > 0 ? 'red' : 'green'} />
       </div>
+
+      {/* Group progress breakdown */}
+      {groups.length > 0 && (
+        <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#e2e8f0]">
+            <h3 className="font-bold text-[#1B3A24]">Progress by Senior Guide Group</h3>
+            <p className="text-xs text-[#64748b]">Training completion aggregated across each senior guide&apos;s assigned group</p>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
+                <th className="px-6 py-3 text-left text-xs font-bold text-[#1B3A24]">Senior Guide</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-[#1B3A24]">Guides</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-[#1B3A24]">Enrollments</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-[#1B3A24]">Avg Completion</th>
+                <th className="px-6 py-3 text-left text-xs font-bold text-[#1B3A24]">Stalled</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g, idx) => (
+                <tr key={g.senior_id} className={`border-b border-[#e2e8f0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]'}`}>
+                  <td className="px-6 py-3 text-sm font-semibold text-[#1B3A24]">{g.senior_name}</td>
+                  <td className="px-6 py-3 text-sm text-[#64748b] font-mono">{g.guides}</td>
+                  <td className="px-6 py-3 text-sm text-[#64748b] font-mono">{g.enrollments}</td>
+                  <td className="px-6 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 h-1.5 bg-[#e2e8f0] rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${g.avg_completion_pct >= 80 ? 'bg-[#2D6A3F]' : g.avg_completion_pct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
+                          style={{ width: `${g.avg_completion_pct}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold text-[#2D6A3F]">{g.avg_completion_pct}%</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-3">
+                    {g.stalled > 0 ? (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold">{g.stalled}</span>
+                    ) : (
+                      <span className="text-xs text-[#94a3b8]">0</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Stalled guides */}
       <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-hidden">

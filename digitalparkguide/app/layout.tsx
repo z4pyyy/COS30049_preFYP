@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -44,6 +45,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="light">
       <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#059669" />
+        <link rel="apple-touch-icon" href="/images/SFC_LOGO.png" />
         {/* Material Symbols Outlined — used by the SFC design system */}
         <link
           rel="stylesheet"
@@ -51,6 +55,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} font-body antialiased`}>
+        <ServiceWorkerRegistration />
         {children}
       </body>
     </html>

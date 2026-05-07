@@ -1,0 +1,20 @@
+{
+  "name": "SFC Digital Park Guide",
+  "short_name": "SFC Guide",
+  "description": "Sarawak Forestry Corporation's digital platform for guide training and AI-powered conservation monitoring.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#059669",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/images/SFC_LOGO.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"],
+  "lang": "en-MY"
+}

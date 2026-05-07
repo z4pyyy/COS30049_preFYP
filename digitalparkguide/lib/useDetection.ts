@@ -54,8 +54,9 @@ export function useDetection(canvasRef: React.RefObject<HTMLCanvasElement | null
   const inferenceRunning = useRef(false)
 
   useEffect(() => {
+    ort.env.wasm.proxy = true
     ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/'
-    ort.InferenceSession.create('/models/yolov8n.onnx', {
+    ort.InferenceSession.create('/models/retrained.onnx', {
       executionProviders: ['wasm'],
     }).then((session) => {
       sessionRef.current = session

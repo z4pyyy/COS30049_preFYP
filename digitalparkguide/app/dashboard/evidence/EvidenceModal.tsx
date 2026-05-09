@@ -117,7 +117,7 @@ export default function EvidenceModal({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-secondary block mb-0.5">
                 Confidence

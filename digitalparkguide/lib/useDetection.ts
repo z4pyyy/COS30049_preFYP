@@ -1,182 +1,511 @@
-import { useEffect, useRef, useState } from 'react'
-import * as ort from 'onnxruntime-web'
+// lib/useDetection.ts
+// Phase 2 — MediaPipe Hand Landmarker integrated.
+// YOLO runs in Web Worker (off main thread) — detects flower/wildlife bboxes.
+// MediaPipe runs on main thread (requires WebGL) — classifies hand pose.
+// Violation gate: pose state (plucking/petting) + bbox proximity = confirmed violation.
+import type { SensorAlert } from './useSensorNode'
 
-const TARGET_CLASSES = new Set([0, 1, 2, 3]) // flower, hand, person, wildlife
-
-const CLASS_NAMES: Record<number, string> = {
-  0: 'flower',
-  1: 'hand',
-  2: 'person',
-  3: 'wildlife'
-}
-
-interface Detection {
-  classId: number
-  label: string
-  confidence: number
-  box: [number, number, number, number]
-}
-
-interface AlertEvent {
-  timestamp: string
-  handBox: Detection
-  targetBox: Detection
-  confidence: number
-}
-
-function iou(a: [number,number,number,number], b: [number,number,number,number]) {
-  const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1])
-  const x2 = Math.min(a[2], b[2]), y2 = Math.min(a[3], b[3])
-  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1)
-  const aArea = (a[2]-a[0]) * (a[3]-a[1])
-  const bArea = (b[2]-b[0]) * (b[3]-b[1])
-  return inter / (aArea + bArea - inter)
-}
-
-function nms(detections: Detection[], iouThreshold = 0.45): Detection[] {
-  const sorted = [...detections].sort((a, b) => b.confidence - a.confidence)
-  const kept: Detection[] = []
-  for (const det of sorted) {
-    const overlap = kept.some(
-      (k) => k.classId === det.classId && iou(k.box, det.box) > iouThreshold
-    )
-    if (!overlap) kept.push(det)
-  }
-  return kept
-}
-
-export function useDetection(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
-  const sessionRef = useRef<ort.InferenceSession | null>(null)
-  const [modelReady, setModelReady] = useState(false)
-  const [detections, setDetections] = useState<Detection[]>([])
-  const [alert, setAlert] = useState<AlertEvent | null>(null)
-  const alertCooldown = useRef(false)
-  const inferenceRunning = useRef(false)
-
-  useEffect(() => {
-    ort.env.wasm.proxy = true
-    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/'
-    ort.InferenceSession.create('/models/retrained.onnx', {
-      executionProviders: ['wasm'],
-    }).then((session) => {
-      sessionRef.current = session
-      setModelReady(true)
-    }).catch((err) => {
-      console.error('Failed to load model:', err)
-    })
-  }, [])
-
-  async function runInference(): Promise<Detection[] | null> {
-    if (inferenceRunning.current) return null
-    inferenceRunning.current = true
-
-    try {
-      const canvas = canvasRef.current
-      const session = sessionRef.current
-      if (!canvas || !session) return null
-
-      const ctx = canvas.getContext('2d')!
-      const imageData = ctx.getImageData(0, 0, 640, 640)
-
-      const float32 = new Float32Array(3 * 640 * 640)
-      for (let i = 0; i < 640 * 640; i++) {
-        float32[i]             = imageData.data[i * 4]     / 255
-        float32[640*640 + i]   = imageData.data[i * 4 + 1] / 255
-        float32[2*640*640 + i] = imageData.data[i * 4 + 2] / 255
-      }
-
-      const tensor = new ort.Tensor('float32', float32, [1, 3, 640, 640])
-      const results = await session.run({ images: tensor })
-      const output = results['output0'].data as Float32Array
-      const numBoxes = 8400
-      const numClasses = 4
-      const detected: Detection[] = []
-
-      for (let i = 0; i < numBoxes; i++) {
-        let bestClass = -1, bestScore = 0
-        for (let c = 0; c < numClasses; c++) {
-          const score = output[(4 + c) * numBoxes + i]
-          if (score > bestScore) { bestScore = score; bestClass = c }
+function makeCheckViolations(
+  detectionsRef:  React.MutableRefObject<Detection[]>,
+  handLmsRef:     React.MutableRefObject<{ x: number; y: number }[][]>,
+  poseState:      React.MutableRefObject<PoseState>,
+  alertCooldown:  React.MutableRefObject<boolean>,
+  sensorAlertRef: React.MutableRefObject<SensorAlert | null> | undefined,
+  triggerAlert:   (args: {
+    handBox: Detection
+    target:  Detection
+    type:    AlertEvent['type']
+    source:  AlertEvent['source']
+  }) => void
+) {
+  return function checkViolations() {
+    if (alertCooldown.current) return
+ 
+    const dets      = detectionsRef.current
+    const flowers   = dets.filter(d => d.classId === 0)
+    const wildlife  = dets.filter(d => d.classId === 3)
+    const yoloHands = dets.filter(d => d.classId === 1)
+ 
+    const handBoxes: [number,number,number,number][] =
+      handLmsRef.current.length > 0
+        ? handLmsRef.current.map(lm => landmarksToBbox(lm))
+        : yoloHands.map(h => h.box)
+ 
+    const sensorActive =
+      sensorAlertRef?.current?.active &&
+      sensorAlertRef.current.type === 'plant_intrusion'
+ 
+    // ── Plant violation ──────────────────────────────────────────────────────
+    if (poseState.current === 'plucking') {
+      for (const handBox of handBoxes) {
+ 
+        // CONFIRMED: sensor + pose + flower bbox
+        if (sensorActive && flowers.length > 0) {
+          for (const flower of flowers) {
+            if (iou(handBox, expandBox(flower.box, 0.12)) > 0.05) {
+              triggerAlert({
+                handBox: { classId: 1, label: 'hand', confidence: 0.95, box: handBox },
+                target:  flower,
+                type:    'hand_near_flower',
+                source:  'sensor_and_pose',
+              })
+              return
+            }
+          }
         }
-
-        if (bestScore < 0.30) continue
-        if (!TARGET_CLASSES.has(bestClass)) continue
-
-        const cx = output[0 * numBoxes + i] / 640
-        const cy = output[1 * numBoxes + i] / 640
-        const w  = output[2 * numBoxes + i] / 640
-        const h  = output[3 * numBoxes + i] / 640
-
-        detected.push({
-          classId: bestClass,
-          label: CLASS_NAMES[bestClass] ?? `class_${bestClass}`,
-          confidence: bestScore,
-          box: [cx - w/2, cy - h/2, cx + w/2, cy + h/2],
-        })
-      }
-
-      const sizeFiltered = detected.filter(d => {
-        const w = d.box[2] - d.box[0]
-        const h = d.box[3] - d.box[1]
-        return w < 0.8 && h < 0.8
-      })
-      const filtered = nms(sizeFiltered, 0.45)
-      setDetections(filtered)
-
-      if (!alertCooldown.current) {
-        const hands = filtered.filter(d => d.classId === 1)
-        const targets = filtered.filter(d => d.classId === 0 || d.classId === 3)
-
-        for (const hand of hands) {
-          for (const target of targets) {
-            const expandedTarget = expandBox(target.box, 0.15)
-            if (iou(hand.box, expandedTarget) > 0.08) {
-              triggerAlert({ hand, target })
-              return filtered
+ 
+        // PROBABLE: sensor + pose, no flower bbox
+        // Sensor confirmed physical proximity — still a violation
+        if (sensorActive && flowers.length === 0) {
+          triggerAlert({
+            handBox:  { classId: 1, label: 'hand', confidence: 0.85, box: handBox },
+            target:   { classId: 0, label: 'flower (sensor)', confidence: 0.85, box: handBox },
+            type:     'hand_near_flower',
+            source:   'sensor_and_pose',
+          })
+          return
+        }
+ 
+        // AI ONLY: pose + flower bbox, no sensor
+        // Still capture but lower confidence
+        if (!sensorActive && flowers.length > 0) {
+          for (const flower of flowers) {
+            if (iou(handBox, expandBox(flower.box, 0.12)) > 0.05) {
+              triggerAlert({
+                handBox: { classId: 1, label: 'hand', confidence: 0.75, box: handBox },
+                target:  flower,
+                type:    'hand_near_flower',
+                source:  'ai_pose',
+              })
+              return
             }
           }
         }
       }
-
-      return filtered
-
-    } finally {
-      inferenceRunning.current = false
+    }
+ 
+    // ── Wildlife violation — AI only (no sensor required) ────────────────────
+    if (poseState.current === 'petting') {
+      for (const handBox of handBoxes) {
+        for (const animal of wildlife) {
+          if (iou(handBox, expandBox(animal.box, 0.15)) > 0.05) {
+            triggerAlert({
+              handBox: { classId: 1, label: 'hand', confidence: 0.95, box: handBox },
+              target:  animal,
+              type:    'hand_near_wildlife',
+              source:  'ai_pose',
+            })
+            return
+          }
+        }
+      }
     }
   }
+}
 
-  function expandBox(
-    box: [number, number, number, number],
-    padding: number
-  ): [number, number, number, number] {
-    return [
-      Math.max(0, box[0] - padding),
-      Math.max(0, box[1] - padding),
-      Math.min(1, box[2] + padding),
-      Math.min(1, box[3] + padding),
-    ]
+import { useEffect, useRef, useState, useCallback } from 'react'
+import {
+  HandLandmarker,
+  FilesetResolver,
+  type HandLandmarkerResult,
+} from '@mediapipe/tasks-vision'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+export interface Detection {
+  classId:    number
+  label:      string
+  confidence: number
+  box:        [number, number, number, number]
+}
+
+export interface AlertEvent {
+  timestamp:  string
+  handBox:    Detection | null
+  targetBox:  Detection
+  confidence: number
+  type:       'hand_near_flower' | 'hand_near_wildlife'
+  source:     'ai_pose' | 'sensor_only' | 'sensor_and_pose'
+}
+
+type PoseState = 'resting' | 'approaching' | 'plucking' | 'petting'
+
+// MediaPipe landmark indices
+const WRIST      = 0
+const THUMB_TIP  = 4
+const INDEX_TIP  = 8
+const INDEX_MCP  = 5
+const MIDDLE_TIP = 12
+const MIDDLE_MCP = 9
+const RING_TIP   = 16
+const RING_MCP   = 13
+const PINKY_TIP  = 20
+const PINKY_MCP  = 17
+
+// ── Geometry helpers ──────────────────────────────────────────────────────────
+function dist3D(
+  a: { x: number; y: number; z: number },
+  b: { x: number; y: number; z: number }
+): number {
+  return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2)
+}
+
+function extensionRatio(
+  lm:      { x: number; y: number; z: number }[],
+  tipIdx:  number,
+  mcpIdx:  number
+): number {
+  const tipDist = dist3D(lm[tipIdx], lm[WRIST])
+  const mcpDist = dist3D(lm[mcpIdx], lm[WRIST])
+  if (mcpDist < 0.001) return 0
+  return Math.min(tipDist / (mcpDist * 2.2), 1.0)
+}
+
+function iou(
+  a: [number,number,number,number],
+  b: [number,number,number,number]
+): number {
+  const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1])
+  const x2 = Math.min(a[2], b[2]), y2 = Math.min(a[3], b[3])
+  const inter = Math.max(0, x2-x1) * Math.max(0, y2-y1)
+  if (inter === 0) return 0
+  return inter / ((a[2]-a[0])*(a[3]-a[1]) + (b[2]-b[0])*(b[3]-b[1]) - inter)
+}
+
+function expandBox(
+  box: [number,number,number,number],
+  pad: number
+): [number,number,number,number] {
+  return [
+    Math.max(0, box[0]-pad), Math.max(0, box[1]-pad),
+    Math.min(1, box[2]+pad), Math.min(1, box[3]+pad),
+  ]
+}
+
+function landmarksToBbox(
+  lm: { x: number; y: number }[]
+): [number,number,number,number] {
+  const xs = lm.map(p => p.x)
+  const ys = lm.map(p => p.y)
+  return [
+    Math.max(0, Math.min(...xs) - 0.02),
+    Math.max(0, Math.min(...ys) - 0.02),
+    Math.min(1, Math.max(...xs) + 0.02),
+    Math.min(1, Math.max(...ys) + 0.02),
+  ]
+}
+
+// ── Pose classifiers ──────────────────────────────────────────────────────────
+
+// Plucking: thumb-index pinch + other fingers curled
+function isPluckingPose(lm: { x: number; y: number; z: number }[]): boolean {
+  if (lm.length < 21) return false
+  if (dist3D(lm[THUMB_TIP], lm[INDEX_TIP]) > 0.08) return false
+
+  const indexExt  = extensionRatio(lm, INDEX_TIP,  INDEX_MCP)
+  const middleExt = extensionRatio(lm, MIDDLE_TIP, MIDDLE_MCP)
+  const ringExt   = extensionRatio(lm, RING_TIP,   RING_MCP)
+  const pinkyExt  = extensionRatio(lm, PINKY_TIP,  PINKY_MCP)
+
+  if (indexExt  < 0.55) return false // index reaching out
+  if (middleExt > 0.65) return false // middle curled
+  if (ringExt   > 0.65) return false // ring curled
+  if (pinkyExt  > 0.65) return false // pinky curled
+
+  return true
+}
+
+// Petting: open palm (all fingers extended) + oscillating wrist motion
+function isPettingPose(
+  lm:           { x: number; y: number; z: number }[],
+  wristHistory: { x: number; y: number }[]
+): boolean {
+  if (lm.length < 21) return false
+
+  const indexExt  = extensionRatio(lm, INDEX_TIP,  INDEX_MCP)
+  const middleExt = extensionRatio(lm, MIDDLE_TIP, MIDDLE_MCP)
+  const ringExt   = extensionRatio(lm, RING_TIP,   RING_MCP)
+  const pinkyExt  = extensionRatio(lm, PINKY_TIP,  PINKY_MCP)
+
+  if (indexExt  < 0.70) return false
+  if (middleExt < 0.70) return false
+  if (ringExt   < 0.70) return false
+  if (pinkyExt  < 0.70) return false
+
+  if (wristHistory.length < 8) return false
+
+  // Count direction changes (oscillation)
+  const recent = wristHistory.slice(-10)
+  let dirChangesX = 0
+  let dirChangesY = 0
+  for (let i = 2; i < recent.length; i++) {
+    if ((recent[i-1].x - recent[i-2].x) * (recent[i].x - recent[i-1].x) < 0) dirChangesX++
+    if ((recent[i-1].y - recent[i-2].y) * (recent[i].y - recent[i-1].y) < 0) dirChangesY++
   }
 
-  function triggerAlert({ hand, target }: { hand: Detection; target: Detection }) {
-    alertCooldown.current = true
-    setTimeout(() => { alertCooldown.current = false }, 10000)
+  return (dirChangesX >= 2 || dirChangesY >= 2)
+}
 
-    const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain); gain.connect(ctx.destination)
-    osc.frequency.value = 880
-    gain.gain.setValueAtTime(0.3, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8)
-    osc.start(); osc.stop(ctx.currentTime + 0.8)
+// ── Hook ──────────────────────────────────────────────────────────────────────
+export function useDetection(
+  sensorAlertRef?: React.MutableRefObject<SensorAlert | null>
+) {
+  const workerRef  = useRef<Worker | null>(null)
+  const workerBusy = useRef(false)
+
+  const handLandmarkerRef = useRef<HandLandmarker | null>(null)
+  const mediapipeReady    = useRef(false)
+  const lastMpTime        = useRef(0)
+  const MP_INTERVAL_MS    = 80
+
+  const wristHistory = useRef<{ x: number; y: number }[]>([])
+  const poseState    = useRef<PoseState>('resting')
+  const alertCooldown = useRef(false)
+
+  const [modelReady, setModelReady] = useState(false)
+  const [detections, setDetections] = useState<Detection[]>([])
+  const [alert,      setAlert]      = useState<AlertEvent | null>(null)
+  const [poseLabel,  setPoseLabel]  = useState<string>('')
+  const poseLabelRef = useRef<string>('')
+
+  const detectionsRef = useRef<Detection[]>([])
+  const handLmsRef    = useRef<{ x: number; y: number }[][]>([])
+
+  // ── YOLO worker ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const worker = new Worker('/workers/yolo.worker.js')
+    workerRef.current = worker
+
+    worker.onmessage = (e) => {
+      const { type, detections: dets, message } = e.data
+      if (type === 'ready')      { setModelReady(true); return }
+      if (type === 'detections') {
+        workerBusy.current = false
+        if (!dets) return
+        detectionsRef.current = dets
+        setDetections(dets)
+        return
+      }
+      if (type === 'error') {
+        workerBusy.current = false
+        console.error('[YOLO worker]', message)
+      }
+    }
+
+    worker.postMessage({ type: 'init' })
+    return () => { worker.terminate(); workerRef.current = null }
+  }, [])
+
+  // ── MediaPipe HandLandmarker ───────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks('/mediapipe/wasm')
+        const landmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: '/models/hand_landmarker.task',
+            delegate: 'GPU',
+          },
+          runningMode:                  'VIDEO',
+          numHands:                     2,
+          minHandDetectionConfidence:   0.5,
+          minHandPresenceConfidence:    0.5,
+          minTrackingConfidence:        0.5,
+        })
+        if (!cancelled) {
+          handLandmarkerRef.current = landmarker
+          mediapipeReady.current    = true
+          console.log('[MediaPipe] HandLandmarker ready')
+        }
+      } catch (err) {
+        console.error('[MediaPipe] init failed:', err)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // ── MediaPipe frame processing ─────────────────────────────────────────────
+  const runMediaPipe = useCallback((
+    video:     HTMLVideoElement,
+    timestamp: number
+  ) => {
+    if (!mediapipeReady.current || !handLandmarkerRef.current) return
+    if (video.readyState < 2) return
+    if (timestamp - lastMpTime.current < MP_INTERVAL_MS) return
+    lastMpTime.current = timestamp
+
+    const result: HandLandmarkerResult =
+      handLandmarkerRef.current.detectForVideo(video, timestamp)
+
+    if (result.landmarks.length === 0) {
+      handLmsRef.current   = []
+      wristHistory.current = []
+      poseState.current    = 'resting'
+      setPoseLabel('')
+      return
+    }
+
+    // Store normalised landmarks for overlay rendering
+    handLmsRef.current = result.landmarks.map(lm =>
+      lm.map(p => ({ x: p.x, y: p.y }))
+    )
+
+    // Classify using world landmarks (metric space, hand-centred — more stable)
+    const worldLms = result.worldLandmarks[0]
+
+    // Update wrist history for petting oscillation
+    const wrist = result.landmarks[0][WRIST]
+    wristHistory.current.push({ x: wrist.x, y: wrist.y })
+    if (wristHistory.current.length > 20) wristHistory.current.shift()
+
+    if (isPluckingPose(worldLms)) {
+      poseState.current = 'plucking',
+      poseLabelRef.current = 'plucking'
+      setPoseLabel('plucking')
+    } else if (isPettingPose(worldLms, wristHistory.current)) {
+      poseState.current = 'petting',
+      poseLabelRef.current = 'petting'
+      setPoseLabel('petting')
+    } else {
+      poseState.current = 'approaching'
+      poseLabelRef.current = ''
+      setPoseLabel('')
+    }
+
+    checkViolations()
+  }, [])
+
+  // ── Violation gate ─────────────────────────────────────────────────────────
+  const checkViolations = useCallback(() => {
+    if (alertCooldown.current) return
+
+    const dets     = detectionsRef.current
+    const flowers  = dets.filter(d => d.classId === 0)
+    const wildlife = dets.filter(d => d.classId === 3)
+    const yoloHands = dets.filter(d => d.classId === 1)
+
+    // Hand boxes: prefer MediaPipe landmarks (more precise), fall back to YOLO
+    const handBoxes: [number,number,number,number][] =
+      handLmsRef.current.length > 0
+        ? handLmsRef.current.map(lm => landmarksToBbox(lm))
+        : yoloHands.map(h => h.box)
+
+    if (handBoxes.length === 0) return
+
+    const sensorActive = sensorAlertRef?.current?.active ?? false
+    const sensorType   = sensorAlertRef?.current?.type
+
+    // Plant violation: plucking pose + flower bbox overlap
+    if (poseState.current === 'plucking') {
+      for (const handBox of handBoxes) {
+        for (const flower of flowers) {
+          if (iou(handBox, expandBox(flower.box, 0.12)) > 0.05) {
+            triggerAlert({
+              handBox: { classId: 1, label: 'hand', confidence: 0.95, box: handBox },
+              target:  flower,
+              type:    'hand_near_flower',
+              source:  sensorActive && sensorType === 'plant_intrusion'
+                ? 'sensor_and_pose' : 'ai_pose',
+            })
+            return
+          }
+        }
+      }
+    }
+
+    // Sensor-only plant violation: no pose but sensor triggered + hand near flower
+    if (!poseState.current || poseState.current === 'resting') {
+      if (sensorActive && sensorType === 'plant_intrusion') {
+        for (const handBox of handBoxes) {
+          for (const flower of flowers) {
+            if (iou(handBox, expandBox(flower.box, 0.15)) > 0.02) {
+              triggerAlert({
+                handBox: { classId: 1, label: 'hand', confidence: 0.85, box: handBox },
+                target:  flower,
+                type:    'hand_near_flower',
+                source:  'sensor_and_pose',
+              })
+              return
+            }
+          }
+        }
+      }
+    }
+
+    // Wildlife violation: petting pose + wildlife bbox overlap
+    if (poseState.current === 'petting') {
+      for (const handBox of handBoxes) {
+        for (const animal of wildlife) {
+          if (iou(handBox, expandBox(animal.box, 0.15)) > 0.05) {
+            triggerAlert({
+              handBox: { classId: 1, label: 'hand', confidence: 0.95, box: handBox },
+              target:  animal,
+              type:    'hand_near_wildlife',
+              source:  sensorActive && sensorType === 'motion_detected'
+                ? 'sensor_and_pose' : 'ai_pose',
+            })
+            return
+          }
+        }
+      }
+    }
+  }, [])
+
+  // ── Alert ──────────────────────────────────────────────────────────────────
+  function triggerAlert({
+    handBox, target, type, source,
+  }: {
+    handBox: Detection
+    target:  Detection
+    type:    AlertEvent['type']
+    source:  AlertEvent['source']
+  }) {
+    alertCooldown.current = true
+    setTimeout(() => { alertCooldown.current = false }, 10_000)
+
+    try {
+      const actx = new AudioContext()
+      const osc  = actx.createOscillator()
+      const gain = actx.createGain()
+      osc.connect(gain); gain.connect(actx.destination)
+      osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.3, actx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.8)
+      osc.start(); osc.stop(actx.currentTime + 0.8)
+    } catch { /* mobile autoplay block */ }
 
     setAlert({
-      timestamp: new Date().toISOString(),
-      handBox: hand,
-      targetBox: target,
-      confidence: Math.min(hand.confidence, target.confidence),
+      timestamp:  new Date().toISOString(),
+      handBox,
+      targetBox:  target,
+      confidence: Math.min(handBox.confidence, target.confidence),
+      type,
+      source,
     })
   }
 
-  return { modelReady, detections, alert, clearAlert: () => setAlert(null), runInference }
+  // ── Send frame to YOLO worker ──────────────────────────────────────────────
+  const sendFrame = useCallback((video: HTMLVideoElement) => {
+    if (workerBusy.current || !workerRef.current) return
+    if (video.readyState < 2) return
+    workerBusy.current = true
+    createImageBitmap(video)
+      .then(bitmap => {
+        workerRef.current!.postMessage({ type: 'frame', bitmap }, [bitmap])
+      })
+      .catch(() => { workerBusy.current = false })
+  }, [])
+
+  return {
+    modelReady,
+    detections,
+    detectionsRef,
+    handLmsRef,
+    poseLabel,
+    poseLabelRef,
+    alert,
+    clearAlert: () => setAlert(null),
+    sendFrame,
+    runMediaPipe,
+  }
 }

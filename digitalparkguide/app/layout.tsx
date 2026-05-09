@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
@@ -8,6 +8,13 @@ const inter = Inter({
   variable: "--font-inter",
   display: "swap",
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: "#059669",
+};
 
 export const metadata: Metadata = {
   title: {
@@ -46,7 +53,6 @@ export default function RootLayout({
     <html lang="en" className="light">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#059669" />
         <link rel="apple-touch-icon" href="/images/SFC_LOGO.png" />
         {/* Material Symbols Outlined — used by the SFC design system */}
         <link

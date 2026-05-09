@@ -172,7 +172,7 @@ export default function QuizBuilder() {
       </div>
 
       {/* Row 1 — title + module */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-bold uppercase text-slate-400">Quiz Title *</label>
           <input
@@ -269,7 +269,7 @@ export default function QuizBuilder() {
               onChange={e => updateQuestion(qIdx, 'question_text', e.target.value)}
             />
             <p className="text-xs text-slate-400 mb-2 font-semibold uppercase">Select correct answer:</p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {q.options.map((opt, oIdx) => (
                 <div
                   key={oIdx}

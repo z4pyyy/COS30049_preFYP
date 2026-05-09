@@ -186,7 +186,7 @@ export default function UsersPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm border border-outline-variant/10">
+        <div className="bg-surface-container-lowest rounded-xl overflow-x-auto shadow-sm border border-outline-variant/10">
           {loading ? (
             <div className="flex items-center justify-center py-20 gap-3 text-on-surface-variant">
               <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -198,7 +198,7 @@ export default function UsersPage() {
               <p className="text-sm font-medium">No users found</p>
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[768px]">
               <thead>
                 <tr className="border-b border-outline-variant/20 bg-surface-container-low">
                   <th className="text-left px-6 py-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant font-bold">Name</th>

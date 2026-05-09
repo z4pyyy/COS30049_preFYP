@@ -721,15 +721,15 @@ function DashboardContent() {
               <p className="text-[#64748b]">No modules matching the selected Park Badge. Clear the filter or select another.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-              <table className="w-full">
+            <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
+              <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="border-b border-[#e2e8f0] bg-[#f8fafc]">
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Module Title</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Park Badge / TPA</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Created</th>
-                    {isHodView && <th className="px-6 py-3 text-right text-xs font-semibold text-[#1B3A24]">Actions</th>}
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Module Title</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Park Badge / TPA</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Status</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Created</th>
+                    {isHodView && <th className="px-4 sm:px-6 py-3 text-right text-xs font-semibold text-[#1B3A24]">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -737,22 +737,22 @@ function DashboardContent() {
                     const additionalTracks = (module.additional_track_ids || []).map(tid => trainingTracks.find(t => t.id === tid)).filter(Boolean)
                     return (
                       <tr key={module.id} className={`border-b border-[#e2e8f0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]'}`}>
-                        <td className="px-6 py-4"><p className="font-medium text-[#1B3A24]">{module.title}</p></td>
-                        <td className="px-6 py-4 text-sm text-[#475569]">
+                        <td className="px-4 sm:px-6 py-4"><p className="font-medium text-[#1B3A24]">{module.title}</p></td>
+                        <td className="px-4 sm:px-6 py-4 text-sm text-[#475569]">
                           <p className="font-medium">{module.training_tracks?.title || 'Unknown'}</p>
                           <p className="text-xs text-[#64748b]">{module.training_tracks?.tpa_name || 'Unknown'}</p>
                           {additionalTracks.map(t => t && (
                             <p key={t.id} className="text-xs text-blue-600 mt-0.5">+ {t.tpa_name}</p>
                           ))}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 sm:px-6 py-4">
                           <span className={module.is_active ? 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800' : 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800'}>
                             {module.is_active ? '✓ Published' : '⊝ Draft'}
                           </span>
                         </td>
-                        <td className="px-6 py-4"><p className="text-sm text-[#64748b]">{new Date(module.created_at).toLocaleDateString()}</p></td>
+                        <td className="px-4 sm:px-6 py-4"><p className="text-sm text-[#64748b]">{new Date(module.created_at).toLocaleDateString()}</p></td>
                         {isHodView && (
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-4 sm:px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <button onClick={() => router.push(`/dashboard?action=edit&id=${module.id}`)} className="px-3 py-1 text-sm font-medium text-[#2D6A3F] hover:bg-[#f0f4f8] rounded transition-colors">✎ Edit</button>
                               <button onClick={() => handleArchiveModule(module.id)} className="px-3 py-1 text-sm font-medium text-amber-600 hover:bg-amber-50 rounded transition-colors">📦 Archive</button>
@@ -930,15 +930,15 @@ function DashboardContent() {
               <button onClick={openCreateTrack} className="px-6 py-2.5 bg-[#2D6A3F] text-white font-medium rounded-lg hover:bg-[#1B3A24]">Create Badge</button>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden mb-6">
-              <table className="w-full">
+            <div className="bg-white rounded-lg shadow-sm overflow-x-auto mb-6">
+              <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="border-b border-[#e2e8f0] bg-[#f8fafc]">
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Badge Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">TPA (Park)</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Activation Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Type</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-[#1B3A24]">Actions</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Badge Name</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">TPA (Park)</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Activation Price</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Type</th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-semibold text-[#1B3A24]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1045,17 +1045,17 @@ function DashboardContent() {
               <p className="text-[#64748b]">Module edits will appear here once any training module is created or modified.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-              <table className="w-full">
+            <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
+              <table className="w-full min-w-[768px]">
                 <thead>
                   <tr className="border-b border-[#e2e8f0] bg-[#f8fafc]">
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Module</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Park Badge / TPA</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Change</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Editor</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Timestamp</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Ver.</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Module</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Park Badge / TPA</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Change</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Editor</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Role</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Timestamp</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Ver.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1130,7 +1130,7 @@ function DashboardContent() {
           )}
 
           <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-            <div className="flex gap-3 flex-wrap">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
               {(["PENDING","UNDER_REVIEW","INTERVIEW_SCHEDULED","APPROVED","REJECTED"] as const).map(s => {
                 const cfg = TAB_CONFIG[s]
                 return (
@@ -1144,12 +1144,12 @@ function DashboardContent() {
           </div>
 
           {/* Bug 7a: include UNDER_REVIEW and INTERVIEW_SCHEDULED tabs so scheduled interviews don't "disappear" */}
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-6 flex-wrap">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 overflow-x-auto max-w-full">
             {(["PENDING","UNDER_REVIEW","INTERVIEW_SCHEDULED","APPROVED","REJECTED"] as const).map(t => {
               const cfg = TAB_CONFIG[t];
               return (
                 <button key={t} onClick={() => setAppTab(t)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${appTab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
+                  className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap shrink-0 ${appTab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
                   <span className={`material-symbols-outlined text-base ${appTab === t ? cfg.color : ""}`} style={{ fontVariationSettings: "'FILL' 1" }}>{cfg.icon}</span>
                   {cfg.label}
                   {appCounts[t] > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${cfg.badge}`}>{appCounts[t]}</span>}
@@ -1204,7 +1204,7 @@ function DashboardContent() {
 
                     {isOpen && (
                       <div className="border-t border-gray-100 px-5 pb-5 pt-4 space-y-4">
-                        <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                           <div className="bg-gray-50 rounded-xl p-3">
                             <p className="font-bold text-gray-400 uppercase tracking-widest mb-1">Email</p>
                             <p className="text-gray-900 font-medium">{app.email}</p>
@@ -1300,9 +1300,9 @@ function DashboardContent() {
 
   return (
     <>
-      <section className="p-6 lg:p-8 space-y-6">
+      <section className="p-4 sm:p-6 lg:p-8 space-y-6">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-black text-[#1B3A24]">{heading}</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">{heading}</h1>
           <p className="text-sm text-[#64748b] mt-1">{subheading}</p>
         </div>
 
@@ -1311,14 +1311,14 @@ function DashboardContent() {
         {widgetMode === 'guide' && <MyBadgesWidget />}
       </section>
 
-      <section className="p-6 lg:p-8 space-y-8">
+      <section className="p-4 sm:p-6 lg:p-8 space-y-8">
           {/* B7.4 — Certification badges (GUIDE+ only) */}
           {hasMinRole(userRole, "GUIDE") && (
             <GuideBadgesSection badges={badges} loading={badgesLoading} />
           )}
 
           {/* Bento grid */}
-          <div className="grid grid-cols-12 gap-8 items-start">
+          <div className="grid grid-cols-12 gap-4 sm:gap-8 items-start">
             {/* Main feed */}
             <div className="col-span-12 lg:col-span-8 space-y-8">
               <div className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
@@ -1331,8 +1331,8 @@ function DashboardContent() {
                       backgroundColor: "rgba(1,45,29,0.2)",
                     }}
                   />
-                  <div className="absolute inset-0 p-8 flex flex-col justify-end bg-gradient-to-t from-primary/80 to-transparent">
-                    <h2 className="text-white text-3xl font-bold tracking-tight">Zone Alpha Surveillance</h2>
+                  <div className="absolute inset-0 p-4 sm:p-8 flex flex-col justify-end bg-gradient-to-t from-primary/80 to-transparent">
+                    <h2 className="text-white text-xl sm:text-3xl font-bold tracking-tight">Zone Alpha Surveillance</h2>
                     <p className="text-emerald-100/80 max-w-md text-sm">Real-time biodiversity monitoring and training track integration for Bako National Park.</p>
                   </div>
                   <div className="absolute top-6 right-6 flex gap-2">
@@ -1341,9 +1341,9 @@ function DashboardContent() {
                   </div>
                 </div>
 
-                <div className="p-8">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-primary">Training Alerts &amp; Incidents</h3>
+                <div className="p-4 sm:p-8">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
+                    <h3 className="text-lg sm:text-xl font-bold text-primary">Training Alerts &amp; Incidents</h3>
                     {can(userRole, "view:own-guides") && (
                       <button className="text-primary text-sm font-bold flex items-center gap-2 hover:underline">
                         View Full Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
@@ -1353,7 +1353,7 @@ function DashboardContent() {
 
                   <div className="space-y-4">
                     {FEED_ITEMS.map((item) => (
-                      <div key={item.id} className="flex items-center gap-6 p-4 bg-surface-container-low rounded-xl group hover:bg-surface-container-high transition-all">
+                      <div key={item.id} className="flex items-center gap-3 sm:gap-6 p-3 sm:p-4 bg-surface-container-low rounded-xl group hover:bg-surface-container-high transition-all">
                         <div className={`h-12 w-12 rounded-full ${item.iconBg} flex items-center justify-center ${item.iconColor} shrink-0`}>
                           <span className="material-symbols-outlined" style={item.fill ? { fontVariationSettings: "'FILL' 1" } : undefined}>
                             {item.icon}
@@ -1430,7 +1430,7 @@ function DashboardContent() {
           </div>
         </section>
 
-        <footer className="w-full py-8 mt-auto bg-emerald-950 flex flex-col md:flex-row justify-between items-center px-12 gap-4">
+        <footer className="w-full py-8 mt-auto bg-emerald-950 flex flex-col md:flex-row justify-between items-center px-4 sm:px-6 lg:px-12 gap-4">
           <div className="text-sm font-bold text-white">Digital Sentinel <span className="font-normal opacity-50 ml-2">Guardian Portal</span></div>
           <div className="flex flex-wrap justify-center gap-6">
             {["Accessibility", "Privacy Policy", "Institutional Links", "Contact Sentinel"].map((l) => (
@@ -1510,7 +1510,7 @@ function InterviewScheduler({
           <span className="material-symbols-outlined text-sm">close</span>
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">Date</label>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}

@@ -172,7 +172,7 @@ export default async function AnnouncementDetailPage({
       </main>
 
       <footer className="bg-emerald-950 w-full py-12 mt-16">
-        <div className="flex flex-col md:flex-row justify-between items-center px-12 gap-8">
+        <div className="flex flex-col md:flex-row justify-between items-center px-4 sm:px-6 lg:px-12 gap-8">
           <div className="flex flex-col gap-2">
             <span className="text-sm font-bold text-white">Digital Sentinel</span>
             <p className="text-xs font-light tracking-wide text-emerald-100/50 max-w-[240px]">

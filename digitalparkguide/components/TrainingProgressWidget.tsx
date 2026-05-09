@@ -213,12 +213,12 @@ export default function TrainingProgressWidget({ mode }: Props) {
 
       {/* Group progress breakdown */}
       {groups.length > 0 && (
-        <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#e2e8f0]">
+        <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-x-auto">
+          <div className="px-4 sm:px-6 py-4 border-b border-[#e2e8f0]">
             <h3 className="font-bold text-[#1B3A24]">Progress by Senior Guide Group</h3>
             <p className="text-xs text-[#64748b]">Training completion aggregated across each senior guide&apos;s assigned group</p>
           </div>
-          <table className="w-full">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
                 <th className="px-6 py-3 text-left text-xs font-bold text-[#1B3A24]">Senior Guide</th>

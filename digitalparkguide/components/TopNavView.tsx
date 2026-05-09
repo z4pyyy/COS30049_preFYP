@@ -39,10 +39,10 @@ export default function TopNavView({ active, authed, name, email, role, context 
   return (
     <>
       {/* Gov-style top strip — flush to screen edges */}
-      <div className="bg-primary text-white text-[11px] py-1.5 px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between">
-          <span className="opacity-60">Portal Rasmi | Sarawak Forestry Corporation</span>
-          <div className="flex items-center gap-4 opacity-60">
+      <div className="bg-primary text-white text-[11px] py-1.5 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <div className="flex items-center justify-between gap-2">
+          <span className="opacity-60 truncate">Portal Rasmi | Sarawak Forestry Corporation</span>
+          <div className="flex items-center gap-4 opacity-60 shrink-0">
             <a href="#" className="hover:opacity-100">BM</a>
             <span>|</span>
             <a href="#" className="hover:opacity-100">EN</a>
@@ -51,19 +51,19 @@ export default function TopNavView({ active, authed, name, email, role, context 
       </div>
 
       {/* Main navbar */}
-      <header className="sticky top-0 z-[60] bg-white border-b border-gray-200 shadow-sm">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-4">
+      <header className="sticky top-0 z-[60] bg-white border-b border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
             {/* Brand + role context */}
-            <Link href="/" className="flex items-center gap-3 shrink-0 min-w-0">
+            <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
               <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shrink-0">
                 <span className="text-white text-lg">🌿</span>
               </div>
               <div className="leading-tight min-w-0">
-                <div className="text-sm font-extrabold text-primary tracking-tight">Digital Sentinel</div>
-                <div className="text-[10px] text-gray-500 font-medium">Sarawak Forestry Corporation</div>
+                <div className="text-xs sm:text-sm font-extrabold text-primary tracking-tight truncate">Digital Sentinel</div>
+                <div className="text-[10px] text-gray-500 font-medium hidden sm:block">Sarawak Forestry Corporation</div>
                 {context && (
-                  <div className="text-[10px] font-bold text-primary uppercase tracking-widest mt-0.5 truncate max-w-56">
+                  <div className="text-[10px] font-bold text-primary uppercase tracking-widest mt-0.5 truncate max-w-32 sm:max-w-56">
                     {context}
                   </div>
                 )}
@@ -91,25 +91,26 @@ export default function TopNavView({ active, authed, name, email, role, context 
             </nav>
 
             {/* Auth CTA */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               {authed ? (
                 <>
                   {isPublic ? (
                     <Link
                       href="/apply-guide"
-                      className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                      className="flex items-center gap-1.5 bg-primary text-white px-3 sm:px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                     >
                       <span className="text-base leading-none">✦</span>
-                      Register as Guide
+                      <span className="hidden sm:inline">Register as Guide</span>
+                      <span className="sm:hidden">Register</span>
                     </Link>
                   ) : (
                     <>
                       <Link
                         href={dashboardHref(role)}
-                        className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                        className="flex items-center gap-1.5 bg-primary text-white px-2.5 sm:px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                       >
                         <span className="material-symbols-outlined text-base leading-none">dashboard</span>
-                        Dashboard
+                        <span className="hidden sm:inline">Dashboard</span>
                       </Link>
                       <NotificationBell />
                     </>
@@ -120,16 +121,17 @@ export default function TopNavView({ active, authed, name, email, role, context 
                 <>
                   <Link
                     href="/login"
-                    className="text-sm font-medium text-gray-600 hover:text-primary px-3 py-2 rounded-md transition-colors"
+                    className="text-sm font-medium text-gray-600 hover:text-primary px-2 sm:px-3 py-2 rounded-md transition-colors"
                   >
                     Sign In
                   </Link>
                   <Link
                     href="/register"
-                    className="flex items-center gap-1.5 bg-primary text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
+                    className="flex items-center gap-1.5 bg-primary text-white px-3 sm:px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                   >
                     <span className="text-base leading-none">✦</span>
-                    Register as Guide
+                    <span className="hidden sm:inline">Register as Guide</span>
+                    <span className="sm:hidden">Register</span>
                   </Link>
                 </>
               )}

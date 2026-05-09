@@ -1,9 +1,13 @@
+//sw.js
 const CACHE_VERSION = 'v3'
 const MODEL_CACHE = `ai-model-${CACHE_VERSION}`
 const APP_CACHE = `app-shell-${CACHE_VERSION}`
 const SYNC_TAG = 'evidence-sync'
 
-const MODEL_URLS = ['/models/retrained.onnx']
+const MODEL_URLS = [
+  '/models/retrained.onnx',
+  '/models/hand_landmarker.task',
+]
 
 const APP_SHELL = [
   '/',
@@ -11,6 +15,10 @@ const APP_SHELL = [
   '/monitor',
   '/manifest.json',
   '/images/SFC_LOGO.png',
+  '/mediapipe/wasm/vision_wasm_internal.js',
+  '/mediapipe/wasm/vision_wasm_internal.wasm',
+  '/mediapipe/wasm/vision_wasm_module_internal.js',
+  '/mediapipe/wasm/vision_wasm_module_internal.wasm',
 ]
 
 // Install: pre-cache model + app shell

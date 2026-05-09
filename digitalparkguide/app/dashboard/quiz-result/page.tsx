@@ -237,8 +237,8 @@ export default function QuizResultsPage() {
                 </div>
 
                 {/* Guide breakdown table */}
-                <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-hidden">
-                  <table className="w-full">
+                <div className="bg-white rounded-2xl border border-[#e2e8f0] overflow-x-auto">
+                  <table className="w-full min-w-[480px]">
                     <thead>
                       <tr className="bg-[#f8fafc] border-b border-[#e2e8f0]">
                         {showGuideColumn && <th className="px-5 py-3 text-left text-xs font-bold text-[#1B3A24]">Guide</th>}

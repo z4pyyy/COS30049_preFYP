@@ -66,13 +66,6 @@ export default function ProfileDropdown({ name, email }: Props) {
 
             {/* Actions */}
             <div className="py-1">
-              <a
-                href="/profile"
-                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors active:bg-gray-100"
-              >
-                <span className="material-symbols-outlined text-[18px] text-gray-400">person</span>
-                Profile
-              </a>
               <button
                 onClick={handleSignOut}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors active:bg-red-100"

@@ -82,13 +82,13 @@ async function getAuthUser() {
         },
       }
     );
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+
     const { data: { user }, error } = await supabase.auth.getUser();
 
-    if (error) {
-      console.error("Failed to fetch auth user:", error);
-      return null;
-    }
-    if (!user) return null;
+    if (error || !user) return null;
 
     const { data: profile } = await supabase
       .from("profiles")

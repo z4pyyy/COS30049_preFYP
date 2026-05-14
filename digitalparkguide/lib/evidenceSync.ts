@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/client'
 import {
   getPendingClips,
   updateClipSyncStatus,
-  removeFromQueue,
   type LocalEvidenceClip,
 } from './evidenceQueue'
 import { getSelectedMimeExt } from './evidence'
@@ -11,15 +10,24 @@ type SyncProgressCallback = (done: number, total: number, current?: string) => v
 
 let syncing = false
 
-export async function syncNow(onProgress?: SyncProgressCallback): Promise<void> {
+const GRACE_PERIOD_MS = 60_000
+
+export async function syncNow(onProgress?: SyncProgressCallback, bypassGrace = false): Promise<void> {
   if (syncing) return
   syncing = true
 
   try {
-    const pending = await getPendingClips()
+    let pending = await getPendingClips()
+
+    if (!bypassGrace) {
+      const cutoff = Date.now() - GRACE_PERIOD_MS
+      pending = pending.filter(c => new Date(c.detectedAt).getTime() <= cutoff)
+    }
+
+    pending = pending.filter(c => !c.markedForDeletion)
+
     if (pending.length === 0) return
 
-    // Also register background sync as fallback if page closes mid-upload
     requestBackgroundSync()
 
     const supabase = createClient()
@@ -112,7 +120,14 @@ async function syncOneClip(
   }
 
   await updateClipSyncStatus(clip.localQueueId, 'synced', { clipUrl, thumbnailUrl })
-  await removeFromQueue(clip.localQueueId)
+}
+
+export async function syncOneById(localQueueId: string): Promise<void> {
+  const pending = await getPendingClips()
+  const clip = pending.find(c => c.localQueueId === localQueueId)
+  if (!clip) throw new Error('Clip not found in queue')
+  const supabase = createClient()
+  await syncOneClip(supabase, clip)
 }
 
 export async function requestBackgroundSync(): Promise<void> {

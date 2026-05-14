@@ -126,14 +126,14 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
 
       {open && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 z-[65] bg-black/40 backdrop-blur-sm"
           onClick={() => setOpen(false)}
           aria-hidden="true"
         />
       )}
 
       <aside
-        className={`fixed left-0 top-0 lg:top-25 z-50 lg:z-30 h-screen lg:h-[calc(100vh-6.25rem)] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 lg:top-25 z-[70] lg:z-30 h-screen lg:h-[calc(100vh-6.25rem)] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

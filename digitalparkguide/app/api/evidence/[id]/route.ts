@@ -40,3 +40,44 @@ export async function PATCH(
 
   return NextResponse.json({ clip: data })
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: localQueueId } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+
+  const { data: clip, error: fetchErr } = await supabase
+    .from('evidence_clips')
+    .select('id, clip_url, thumbnail_url, guide_id')
+    .eq('local_queue_id', localQueueId)
+    .single()
+
+  if (fetchErr || !clip) {
+    return NextResponse.json({ error: 'Clip not found' }, { status: 404 })
+  }
+
+  if (clip.guide_id !== user.id) {
+    return NextResponse.json({ error: 'Not your clip' }, { status: 403 })
+  }
+
+  const clipPath = `${clip.guide_id}/${localQueueId}`
+  const extensions = ['.webm', '.mp4', '.webp', '.jpg']
+  for (const ext of extensions) {
+    await supabase.storage.from('evidence-clips').remove([`${clipPath}${ext}`])
+  }
+
+  const { error: deleteErr } = await supabase
+    .from('evidence_clips')
+    .delete()
+    .eq('id', clip.id)
+
+  if (deleteErr) {
+    return NextResponse.json({ error: deleteErr.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}

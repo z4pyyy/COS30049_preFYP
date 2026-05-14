@@ -3,106 +3,9 @@
 // YOLO runs in Web Worker (off main thread) — detects flower/wildlife bboxes.
 // MediaPipe runs on main thread (requires WebGL) — classifies hand pose.
 // Violation gate: pose state (plucking/petting) + bbox proximity = confirmed violation.
+
 import type { SensorAlert } from './useSensorNode'
-
-function makeCheckViolations(
-  detectionsRef:  React.MutableRefObject<Detection[]>,
-  handLmsRef:     React.MutableRefObject<{ x: number; y: number }[][]>,
-  poseState:      React.MutableRefObject<PoseState>,
-  alertCooldown:  React.MutableRefObject<boolean>,
-  sensorAlertRef: React.MutableRefObject<SensorAlert | null> | undefined,
-  triggerAlert:   (args: {
-    handBox: Detection
-    target:  Detection
-    type:    AlertEvent['type']
-    source:  AlertEvent['source']
-  }) => void
-) {
-  return function checkViolations() {
-    if (alertCooldown.current) return
- 
-    const dets      = detectionsRef.current
-    const flowers   = dets.filter(d => d.classId === 0)
-    const wildlife  = dets.filter(d => d.classId === 3)
-    const yoloHands = dets.filter(d => d.classId === 1)
- 
-    const handBoxes: [number,number,number,number][] =
-      handLmsRef.current.length > 0
-        ? handLmsRef.current.map(lm => landmarksToBbox(lm))
-        : yoloHands.map(h => h.box)
- 
-    const sensorActive =
-      sensorAlertRef?.current?.active &&
-      sensorAlertRef.current.type === 'plant_intrusion'
- 
-    // ── Plant violation ──────────────────────────────────────────────────────
-    if (poseState.current === 'plucking') {
-      for (const handBox of handBoxes) {
- 
-        // CONFIRMED: sensor + pose + flower bbox
-        if (sensorActive && flowers.length > 0) {
-          for (const flower of flowers) {
-            if (iou(handBox, expandBox(flower.box, 0.12)) > 0.05) {
-              triggerAlert({
-                handBox: { classId: 1, label: 'hand', confidence: 0.95, box: handBox },
-                target:  flower,
-                type:    'hand_near_flower',
-                source:  'sensor_and_pose',
-              })
-              return
-            }
-          }
-        }
- 
-        // PROBABLE: sensor + pose, no flower bbox
-        // Sensor confirmed physical proximity — still a violation
-        if (sensorActive && flowers.length === 0) {
-          triggerAlert({
-            handBox:  { classId: 1, label: 'hand', confidence: 0.85, box: handBox },
-            target:   { classId: 0, label: 'flower (sensor)', confidence: 0.85, box: handBox },
-            type:     'hand_near_flower',
-            source:   'sensor_and_pose',
-          })
-          return
-        }
- 
-        // AI ONLY: pose + flower bbox, no sensor
-        // Still capture but lower confidence
-        if (!sensorActive && flowers.length > 0) {
-          for (const flower of flowers) {
-            if (iou(handBox, expandBox(flower.box, 0.12)) > 0.05) {
-              triggerAlert({
-                handBox: { classId: 1, label: 'hand', confidence: 0.75, box: handBox },
-                target:  flower,
-                type:    'hand_near_flower',
-                source:  'ai_pose',
-              })
-              return
-            }
-          }
-        }
-      }
-    }
- 
-    // ── Wildlife violation — AI only (no sensor required) ────────────────────
-    if (poseState.current === 'petting') {
-      for (const handBox of handBoxes) {
-        for (const animal of wildlife) {
-          if (iou(handBox, expandBox(animal.box, 0.15)) > 0.05) {
-            triggerAlert({
-              handBox: { classId: 1, label: 'hand', confidence: 0.95, box: handBox },
-              target:  animal,
-              type:    'hand_near_wildlife',
-              source:  'ai_pose',
-            })
-            return
-          }
-        }
-      }
-    }
-  }
-}
-
+import { notifyNodeViolation } from './useSensorNode'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   HandLandmarker,
@@ -376,80 +279,64 @@ export function useDetection(
   }, [])
 
   // ── Violation gate ─────────────────────────────────────────────────────────
-  const checkViolations = useCallback(() => {
-    if (alertCooldown.current) return
+const checkViolations = useCallback(() => {
+  if (alertCooldown.current) return
 
-    const dets     = detectionsRef.current
-    const flowers  = dets.filter(d => d.classId === 0)
-    const wildlife = dets.filter(d => d.classId === 3)
-    const yoloHands = dets.filter(d => d.classId === 1)
+  const dets      = detectionsRef.current
+  const flowers   = dets.filter(d => d.classId === 2)
+  const wildlife  = dets.filter(d => d.classId === 3)
+  const yoloHands = dets.filter(d => d.classId === 0)
 
-    // Hand boxes: prefer MediaPipe landmarks (more precise), fall back to YOLO
-    const handBoxes: [number,number,number,number][] =
-      handLmsRef.current.length > 0
-        ? handLmsRef.current.map(lm => landmarksToBbox(lm))
-        : yoloHands.map(h => h.box)
+  const handBoxes: [number,number,number,number][] =
+    handLmsRef.current.length > 0
+      ? handLmsRef.current.map(lm => landmarksToBbox(lm))
+      : yoloHands.map(h => h.box)
 
-    if (handBoxes.length === 0) return
+  if (handBoxes.length === 0) return
 
-    const sensorActive = sensorAlertRef?.current?.active ?? false
-    const sensorType   = sensorAlertRef?.current?.type
+  // ── Plant violation — ALL THREE required ──────────────────────────────────
+  // sensor active + plucking pose + flower bbox = violation
+  // Any missing = no violation
+  if (poseState.current === 'plucking') {
+    const sensorActive =
+      sensorAlertRef?.current?.active === true &&
+      sensorAlertRef.current.type === 'plant_intrusion'
 
-    // Plant violation: plucking pose + flower bbox overlap
-    if (poseState.current === 'plucking') {
-      for (const handBox of handBoxes) {
-        for (const flower of flowers) {
-          if (iou(handBox, expandBox(flower.box, 0.12)) > 0.05) {
-            triggerAlert({
-              handBox: { classId: 1, label: 'hand', confidence: 0.95, box: handBox },
-              target:  flower,
-              type:    'hand_near_flower',
-              source:  sensorActive && sensorType === 'plant_intrusion'
-                ? 'sensor_and_pose' : 'ai_pose',
-            })
-            return
-          }
+    if (!sensorActive)        return  // sensor not triggered
+    if (flowers.length === 0) return  // no flower detected
+
+    for (const handBox of handBoxes) {
+      for (const flower of flowers) {
+        if (iou(handBox, expandBox(flower.box, 0.12)) > 0.05) {
+          triggerAlert({
+            handBox: { classId: 0, label: 'hand', confidence: 0.95, box: handBox },
+            target:  flower,
+            type:    'hand_near_flower',
+            source:  'sensor_and_pose',
+          })
+          return
         }
       }
     }
+  }
 
-    // Sensor-only plant violation: no pose but sensor triggered + hand near flower
-    if (!poseState.current || poseState.current === 'resting') {
-      if (sensorActive && sensorType === 'plant_intrusion') {
-        for (const handBox of handBoxes) {
-          for (const flower of flowers) {
-            if (iou(handBox, expandBox(flower.box, 0.15)) > 0.02) {
-              triggerAlert({
-                handBox: { classId: 1, label: 'hand', confidence: 0.85, box: handBox },
-                target:  flower,
-                type:    'hand_near_flower',
-                source:  'sensor_and_pose',
-              })
-              return
-            }
-          }
+  // ── Wildlife violation — AI only (sensor not required) ────────────────────
+  if (poseState.current === 'petting') {
+    for (const handBox of handBoxes) {
+      for (const animal of wildlife) {
+        if (iou(handBox, expandBox(animal.box, 0.15)) > 0.05) {
+          triggerAlert({
+            handBox: { classId: 0, label: 'hand', confidence: 0.95, box: handBox },
+            target:  animal,
+            type:    'hand_near_wildlife',
+            source:  'ai_pose',
+          })
+          return
         }
       }
     }
-
-    // Wildlife violation: petting pose + wildlife bbox overlap
-    if (poseState.current === 'petting') {
-      for (const handBox of handBoxes) {
-        for (const animal of wildlife) {
-          if (iou(handBox, expandBox(animal.box, 0.15)) > 0.05) {
-            triggerAlert({
-              handBox: { classId: 1, label: 'hand', confidence: 0.95, box: handBox },
-              target:  animal,
-              type:    'hand_near_wildlife',
-              source:  sensorActive && sensorType === 'motion_detected'
-                ? 'sensor_and_pose' : 'ai_pose',
-            })
-            return
-          }
-        }
-      }
-    }
-  }, [])
+  }
+}, [])
 
   // ── Alert ──────────────────────────────────────────────────────────────────
   function triggerAlert({
@@ -473,6 +360,10 @@ export function useDetection(
       gain.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 0.8)
       osc.start(); osc.stop(actx.currentTime + 0.8)
     } catch { /* mobile autoplay block */ }
+
+    if (source === 'sensor_and_pose') {
+      notifyNodeViolation()
+    }
 
     setAlert({
       timestamp:  new Date().toISOString(),

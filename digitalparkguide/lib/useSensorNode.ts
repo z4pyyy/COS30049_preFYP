@@ -1,22 +1,17 @@
 // lib/useSensorNode.ts
-// Connects PWA to ESP32 sensor node over local WiFi.
-// HTTP ping confirms node is reachable.
-// WebSocket receives real-time sensor events.
-//
-// Usage:
-//   const { sensorAlert, nodeConnected, lastDistance } = useSensorNode()
-//
-// Phone must be connected to "SFC-SensorNode-01" WiFi for this to work.
-// Falls back gracefully when not connected — AI-only mode.
+// HTTP polling only — works from HTTPS PWA over ESP32 hotspot.
+// Polls http://192.168.4.1/sensor every 500ms when active.
+// Falls back gracefully when node not reachable — AI-only mode.
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const NODE_IP      = '192.168.4.1'
-const HTTP_URL     = `http://${NODE_IP}/ping`
-const WS_URL       = `ws://${NODE_IP}:81`
-const PING_INTERVAL = 5000   // ms — how often to check node is still alive
-const RECONNECT_MS  = 3000   // ms — WebSocket reconnect delay
+const NODE_IP       = '192.168.4.1'
+const SENSOR_URL    = `http://${NODE_IP}/sensor`
+const PING_URL      = `http://${NODE_IP}/ping`
+const POLL_MS       = 500   // poll every 500ms
+const TIMEOUT_MS    = 2000  // 2s fetch timeout
+const ALERT_TTL_MS  = 3000  // how long sensorAlert stays active after trigger
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface SensorAlert {
@@ -27,169 +22,151 @@ export interface SensorAlert {
   active:    boolean
 }
 
+interface SensorState {
+  node:             string
+  distance:         number
+  inZone:           boolean
+  intrusionActive:  boolean
+  pirActive:        boolean
+  lastEvent:        string
+  lastEventAge:     number
+  uptime:           number
+}
+
+// ── Notify ESP32 node — triggers buzzer + red LED ────────────────────────
+export async function notifyNodeViolation(): Promise<void> {
+  try {
+    await fetch(`http://${NODE_IP}/violation`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      cache: 'no-store',
+    })
+  } catch {
+    // Node unreachable — fail silently, AI-only mode
+  }
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export function useSensorNode() {
-  const wsRef           = useRef<WebSocket | null>(null)
-  const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const reconnectRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollRef         = useRef<ReturnType<typeof setInterval> | null>(null)
+  const alertTimerRef   = useRef<ReturnType<typeof setTimeout>  | null>(null)
   const mountedRef      = useRef(true)
-  const alertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wasIntruding    = useRef(false)  // edge detection — only fire once per intrusion
+  const wasPirActive    = useRef(false)
 
-  const [nodeConnected,  setNodeConnected]  = useState(false)
-  const [lastDistance,   setLastDistance]   = useState<number | null>(null)
-  const [sensorAlert,    setSensorAlert]    = useState<SensorAlert | null>(null)
-  const [pirActive,      setPirActive]      = useState(false)
+  const [nodeConnected, setNodeConnected] = useState(false)
+  const [lastDistance,  setLastDistance]  = useState<number | null>(null)
+  const [sensorAlert,   setSensorAlert]   = useState<SensorAlert | null>(null)
 
-  // Stable ref so violation gate in useDetection always sees latest alert
+  // Stable ref — violation gate in useDetection reads this directly
   const sensorAlertRef = useRef<SensorAlert | null>(null)
 
-  // ── HTTP ping — check node is reachable ────────────────────────────────────
-  const pingNode = useCallback(async () => {
-    try {
-      const res = await fetch(HTTP_URL, {
-        signal: AbortSignal.timeout(2000), // 2s timeout
-      })
-      if (res.ok && mountedRef.current) {
-        setNodeConnected(true)
-      }
-    } catch {
-      if (mountedRef.current) {
-        setNodeConnected(false)
-      }
-    }
+  // ── Set alert with auto-clear ─────────────────────────────────────────────
+  const setAlert = useCallback((alert: SensorAlert) => {
+    sensorAlertRef.current = alert
+    setSensorAlert(alert)
+
+    // Clear active flag after TTL — 3s window for pose classifier to match
+    if (alertTimerRef.current) clearTimeout(alertTimerRef.current)
+    alertTimerRef.current = setTimeout(() => {
+      if (!mountedRef.current) return
+      const cleared = { ...alert, active: false }
+      sensorAlertRef.current = cleared
+      setSensorAlert(cleared)
+    }, ALERT_TTL_MS)
   }, [])
 
-  // ── Handle incoming WebSocket message ─────────────────────────────────────
-  const handleMessage = useCallback((event: MessageEvent) => {
+  // ── Poll sensor state ─────────────────────────────────────────────────────
+  const poll = useCallback(async () => {
+    if (!mountedRef.current) return
+
     try {
-      const data = JSON.parse(event.data)
+      const res = await fetch(SENSOR_URL, {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        cache:  'no-store',
+      })
 
-      if (data.event === 'plant_intrusion') {
-        setLastDistance(data.distance)
+      if (!res.ok) {
+        setNodeConnected(false)
+        return
+      }
 
-        const alert: SensorAlert = {
+      const data: SensorState = await res.json()
+      if (!mountedRef.current) return
+
+      setNodeConnected(true)
+      setLastDistance(data.distance)
+
+      // ── Plant intrusion — rising edge only ───────────────────────────────
+      if (data.intrusionActive && !wasIntruding.current) {
+        wasIntruding.current = true
+        setAlert({
           type:      'plant_intrusion',
           distance:  data.distance,
           node:      data.node,
           timestamp: Date.now(),
           active:    true,
-        }
-        sensorAlertRef.current = alert
-        setSensorAlert(alert)
-
-        // Auto-clear alert active flag after 3s
-        // (violation gate has 3s window to match with pose)
-        if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current)
-        alertTimeoutRef.current = setTimeout(() => {
-          if (sensorAlertRef.current) {
-            const cleared = { ...sensorAlertRef.current, active: false }
-            sensorAlertRef.current = cleared
-            setSensorAlert(cleared)
-          }
-        }, 3000)
-
+        })
         console.log(`[Sensor] Plant intrusion: ${data.distance}cm`)
       }
 
-      if (data.event === 'motion_detected') {
-        const alert: SensorAlert = {
+      if (!data.intrusionActive) {
+        wasIntruding.current = false
+      }
+
+      // ── PIR motion — rising edge only ────────────────────────────────────
+      if (data.pirActive && !wasPirActive.current) {
+        wasPirActive.current = true
+        setAlert({
           type:      'motion_detected',
           distance:  data.distance,
           node:      data.node,
           timestamp: Date.now(),
           active:    true,
-        }
-        sensorAlertRef.current = alert
-        setSensorAlert(alert)
-
-        if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current)
-        alertTimeoutRef.current = setTimeout(() => {
-          if (sensorAlertRef.current) {
-            const cleared = { ...sensorAlertRef.current, active: false }
-            sensorAlertRef.current = cleared
-            setSensorAlert(cleared)
-          }
-        }, 3000)
-
+        })
         console.log('[Sensor] Motion detected')
       }
 
-      if (data.event === 'connected') {
-        setNodeConnected(true)
-        setLastDistance(data.distance)
+      if (!data.pirActive) {
+        wasPirActive.current = false
       }
 
-    } catch (err) {
-      console.warn('[Sensor] Failed to parse WS message:', event.data)
+    } catch {
+      // Fetch failed — node unreachable
+      if (mountedRef.current) {
+        setNodeConnected(false)
+      }
     }
-  }, [])
+  }, [setAlert])
 
-  // ── WebSocket connect ──────────────────────────────────────────────────────
-  const connectWS = useCallback(() => {
-    if (!mountedRef.current) return
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
-
-    console.log('[Sensor] Connecting WebSocket...')
-
-    const ws = new WebSocket(WS_URL)
-    wsRef.current = ws
-
-    ws.onopen = () => {
-      if (!mountedRef.current) return
-      console.log('[Sensor] WebSocket connected')
-      setNodeConnected(true)
-    }
-
-    ws.onmessage = handleMessage
-
-    ws.onclose = () => {
-      if (!mountedRef.current) return
-      console.log('[Sensor] WebSocket closed — reconnecting...')
-      setNodeConnected(false)
-      // Reconnect after delay
-      reconnectRef.current = setTimeout(connectWS, RECONNECT_MS)
-    }
-
-    ws.onerror = () => {
-      // onclose will fire after onerror — let it handle reconnect
-      ws.close()
-    }
-  }, [handleMessage])
-
-  // ── Boot ───────────────────────────────────────────────────────────────────
+  // ── Boot ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     mountedRef.current = true
 
-    // Try initial ping first — if node not reachable, still try WS
-    pingNode()
+    // Initial poll immediately
+    poll()
 
-    // Connect WebSocket
-    connectWS()
-
-    // Periodic HTTP ping to confirm node still alive
-    pingIntervalRef.current = setInterval(pingNode, PING_INTERVAL)
+    // Start polling interval
+    pollRef.current = setInterval(poll, POLL_MS)
 
     return () => {
       mountedRef.current = false
-      wsRef.current?.close()
-      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current)
-      if (reconnectRef.current)    clearTimeout(reconnectRef.current)
-      if (alertTimeoutRef.current) clearTimeout(alertTimeoutRef.current)
+      if (pollRef.current)       clearInterval(pollRef.current)
+      if (alertTimerRef.current) clearTimeout(alertTimerRef.current)
     }
-  }, [connectWS, pingNode])
+  }, [poll])
 
-  // ── Manual clear ──────────────────────────────────────────────────────────
   const clearSensorAlert = useCallback(() => {
     sensorAlertRef.current = null
     setSensorAlert(null)
+    if (alertTimerRef.current) clearTimeout(alertTimerRef.current)
   }, [])
 
   return {
     nodeConnected,
     lastDistance,
     sensorAlert,
-    sensorAlertRef,  // stable ref for violation gate in useDetection
-    pirActive,
+    sensorAlertRef,
     clearSensorAlert,
   }
 }

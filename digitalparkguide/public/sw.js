@@ -1,5 +1,5 @@
 //sw.js
-const CACHE_VERSION = 'v3'
+const CACHE_VERSION = 'v4'
 const MODEL_CACHE = `ai-model-${CACHE_VERSION}`
 const APP_CACHE = `app-shell-${CACHE_VERSION}`
 const SYNC_TAG = 'evidence-sync'

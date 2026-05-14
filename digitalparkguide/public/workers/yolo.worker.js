@@ -11,7 +11,7 @@ const IOU_THRESHOLD  = 0.45
 const NUM_BOXES      = 8400
 const NUM_CLASSES    = 4
 
-const CLASS_NAMES = { 0: 'flower', 1: 'hand', 2: 'person', 3: 'wildlife' }
+const CLASS_NAMES = { 0: 'hand', 1: 'person', 2: 'plant', 3: 'wildlife' }
 
 // ── State ────────────────────────────────────────────────────────────────────
 let session = null
@@ -29,7 +29,7 @@ async function init() {
   canvas = new OffscreenCanvas(INPUT_SIZE, INPUT_SIZE)
   ctx    = canvas.getContext('2d')
 
-  session = await ort.InferenceSession.create('/models/retrained.onnx', {
+  session = await ort.InferenceSession.create('/models/V3.onnx', {
     executionProviders: ['wasm'],
   })
 

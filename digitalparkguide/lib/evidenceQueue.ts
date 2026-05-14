@@ -18,6 +18,7 @@ export interface LocalEvidenceClip {
   retryCount: number
   clipUrl?: string
   thumbnailUrl?: string
+  markedForDeletion?: boolean
 }
 
 function openDB(): Promise<IDBDatabase> {
@@ -124,4 +125,22 @@ export async function resetFailedClips(): Promise<number> {
   }
   db.close()
   return failed.length
+}
+
+export async function getAllClips(): Promise<LocalEvidenceClip[]> {
+  const db = await openDB()
+  const store = txStore(db, 'readonly')
+  const all: LocalEvidenceClip[] = await reqToPromise(store.getAll())
+  db.close()
+  return all.sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime())
+}
+
+export async function markForDeletion(localQueueId: string): Promise<void> {
+  const db = await openDB()
+  const store = txStore(db, 'readwrite')
+  const clip: LocalEvidenceClip | undefined = await reqToPromise(store.get(localQueueId))
+  if (!clip) { db.close(); return }
+  clip.markedForDeletion = true
+  await reqToPromise(store.put(clip))
+  db.close()
 }

@@ -10,23 +10,23 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useDetection, type Detection } from '@/lib/useDetection'
 import { startPreRollBuffer, stopPreRollBuffer, captureEvidenceClip } from '@/lib/evidence'
 import { syncNow, registerAutoSync } from '@/lib/evidenceSync'
-import { getPendingCount, resetFailedClips } from '@/lib/evidenceQueue'
 import { createClient } from '@/lib/supabase/client'
+import ClipQueuePanel from '@/components/ClipQueuePanel'
 import { useToast } from '@/components/ui/Toast'
 import { useSensorNode } from '@/lib/useSensorNode'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const CLASS_COLORS: Record<number, string> = {
-  0: '#22c55e',
-  1: '#3b82f6',
-  2: '#f97316',
+  0: '#3b82f6',
+  1: '#f97316',
+  2: '#22c55e',
   3: '#ef4444',
 }
 
 
 
 const CLASS_LABELS: Record<number, string> = {
-  0: 'flower', 1: 'hand', 2: 'person', 3: 'wildlife',
+  0: 'hand', 1: 'person', 2: 'plant', 3: 'wildlife',
 }
 
 // Hand skeleton connections (MediaPipe 21-point topology)
@@ -62,7 +62,7 @@ function drawDetections(
     const bh = (det.box[3] - det.box[1]) * ch
 
     // Expanded zone ring for flowers and wildlife
-    if (det.classId === 0 || det.classId === 3) {
+    if (det.classId === 2 || det.classId === 3) {
       const pad = 0.12
       const ex = Math.max(0, det.box[0]-pad) * cw
       const ey = Math.max(0, det.box[1]-pad) * ch
@@ -144,8 +144,6 @@ export default function MonitorPage() {
   const [tracks,           setTracks]           = useState<TrackOption[]>([])
   const [selectedTrackId,  setSelectedTrackId]  = useState<string>('')
   const [manualTpa,        setManualTpa]        = useState<string>('')
-  const [pendingCount,     setPendingCount]     = useState(0)
-  const [syncing,          setSyncing]          = useState(false)
   const [fps,              setFps]              = useState(0)
 
   const captureCooldown = useRef(false)
@@ -206,10 +204,7 @@ export default function MonitorPage() {
   // ── Auto-sync ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const cleanup = registerAutoSync()
-    const interval = setInterval(async () => {
-      setPendingCount(await getPendingCount())
-    }, 5000)
-    return () => { cleanup(); clearInterval(interval) }
+    return () => { cleanup() }
   }, [])
 
   // ── renderOverlay for evidence pre-roll buffer ─────────────────────────────
@@ -337,9 +332,7 @@ export default function MonitorPage() {
         tpaLabel:        isUuid ? null : effectiveTrackId,
         guideId:         userId,
       })
-      const count = await getPendingCount()
-      setPendingCount(count)
-      showToast(`Evidence captured — ${count} queued`, 'info')
+      showToast('Evidence captured', 'info')
     } catch (err) {
       console.error('Capture failed:', err)
       showToast('Failed to capture evidence clip', 'error')
@@ -350,39 +343,17 @@ export default function MonitorPage() {
     if (alert) handleCapture()
   }, [alert, handleCapture])
 
-  // ── Manual sync ────────────────────────────────────────────────────────────
-  async function handleManualSync() {
-    if (syncing) return
-    setSyncing(true)
-    try {
-      await resetFailedClips()
-      await syncNow((done, total) => setPendingCount(total - done))
-      const remaining = await getPendingCount()
-      setPendingCount(remaining)
-      showToast(
-        remaining === 0
-          ? 'All clips synced'
-          : `${remaining} clip${remaining > 1 ? 's' : ''} still queued`,
-        remaining === 0 ? 'info' : 'warning'
-      )
-    } catch {
-      showToast('Sync failed — check connection', 'error')
-    } finally {
-      setSyncing(false)
-    }
-  }
-
   function pillStyle(classId: number) {
-    if (classId === 0) return 'bg-green-100 text-green-800'
-    if (classId === 1) return 'bg-blue-100 text-blue-800'
-    if (classId === 2) return 'bg-surface-container-high text-on-surface-variant'
+    if (classId === 0) return 'bg-blue-100 text-blue-800'
+    if (classId === 1) return 'bg-surface-container-high text-on-surface-variant'
+    if (classId === 2) return 'bg-green-100 text-green-800'
     return 'bg-tertiary-container text-on-tertiary-container'
   }
 
   function pillIcon(classId: number) {
-    if (classId === 0) return 'local_florist'
-    if (classId === 1) return 'back_hand'
-    if (classId === 2) return 'person'
+    if (classId === 0) return 'back_hand'
+    if (classId === 1) return 'person'
+    if (classId === 2) return 'local_florist'
     return 'pets'
   }
 
@@ -417,23 +388,25 @@ export default function MonitorPage() {
       )}
 
       {/* Header */}
-      <header className="flex items-center gap-4 px-6 py-4 bg-surface-container border-b border-outline-variant/20">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-md shadow-primary/30">
-          <span className="material-symbols-outlined text-primary-fixed text-xl">videocam</span>
-        </div>
-        <div>
-          <h1 className="text-base font-black uppercase tracking-tight text-on-surface leading-none">
-            AI Monitoring
-          </h1>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-secondary mt-0.5">
-            Conservation Enforcement
-          </p>
+      <header className="px-4 sm:px-6 py-3 sm:py-4 bg-surface-container border-b border-outline-variant/20">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-primary rounded-xl flex items-center justify-center shadow-md shadow-primary/30 shrink-0">
+            <span className="material-symbols-outlined text-primary-fixed text-lg sm:text-xl">videocam</span>
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-sm sm:text-base font-black uppercase tracking-tight text-on-surface leading-none">
+              AI Monitoring
+            </h1>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-secondary mt-0.5">
+              Conservation Enforcement
+            </p>
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 mt-2.5">
           {/* FPS counter */}
           {running && (
-            <div className="flex items-center gap-1.5 bg-surface-container-high rounded-full px-3 py-1.5">
+            <div className="flex items-center gap-1.5 bg-surface-container-high rounded-full px-2.5 py-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
                 {fps} fps
               </span>
@@ -442,7 +415,7 @@ export default function MonitorPage() {
 
           {/* Pose label */}
           {running && poseLabel !== '' && (
-            <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 ${
+            <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 ${
               poseLabel === 'plucking' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
             }`}>
               <span className="material-symbols-outlined text-sm">
@@ -454,50 +427,36 @@ export default function MonitorPage() {
             </div>
           )}
 
-          {/* Pending sync */}
-          {pendingCount > 0 && (
-            <button
-              onClick={handleManualSync}
-              disabled={syncing}
-              className="flex items-center gap-1.5 bg-amber-100 text-amber-800 rounded-full px-3 py-1.5 hover:bg-amber-200 active:scale-95 transition-all disabled:opacity-70"
-            >
-              <span className={`material-symbols-outlined text-sm ${syncing ? 'animate-spin' : ''}`}>
-                {syncing ? 'progress_activity' : 'cloud_upload'}
+          <div className="flex items-center gap-2 ml-auto">
+            {/* Node status */}
+            <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 ${
+              nodeConnected
+                ? 'bg-green-100 text-green-800'
+                : 'bg-surface-container-high text-on-surface-variant'
+            }`}>
+              <div className={`w-2 h-2 rounded-full shrink-0 ${
+                nodeConnected ? 'bg-green-500 animate-pulse' : 'bg-outline'
+              }`} />
+              <span className="text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">
+                {nodeConnected
+                  ? `${lastDistance !== null ? `${lastDistance.toFixed(0)}cm` : 'Node'}`
+                  : 'Sensor'
+                }
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-widest">
-                {syncing ? 'Syncing…' : `${pendingCount} queued · Sync`}
+            </div>
+
+            {/* Model status */}
+            <div className="flex items-center gap-1.5 bg-surface-container-high rounded-full px-2.5 py-1">
+              <div className={`w-2 h-2 rounded-full shrink-0 ${modelReady ? 'bg-tertiary animate-pulse' : 'bg-outline'}`} />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant whitespace-nowrap">
+                {modelReady ? 'Ready' : 'Loading…'}
               </span>
-            </button>
-          )}
-
-          {/* Node status */}
-          <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 ${
-            nodeConnected
-              ? 'bg-green-100 text-green-800'
-              : 'bg-surface-container-high text-on-surface-variant'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${
-              nodeConnected ? 'bg-green-500 animate-pulse' : 'bg-outline'
-            }`} />
-            <span className="text-[10px] font-bold uppercase tracking-widest">
-              {nodeConnected
-                ? `Node ${lastDistance !== null ? `${lastDistance.toFixed(0)}cm` : 'live'}`
-                : 'No sensor node'
-              }
-            </span>
-          </div>
-
-          {/* Model status */}
-          <div className="flex items-center gap-2 bg-surface-container-high rounded-full px-3 py-1.5">
-            <div className={`w-2 h-2 rounded-full ${modelReady ? 'bg-tertiary animate-pulse' : 'bg-outline'}`} />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-              {modelReady ? 'Model ready' : 'Loading…'}
-            </span>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-start px-4 py-6 gap-6 max-w-2xl mx-auto w-full">
+      <main className="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 py-4 sm:py-6 gap-4 sm:gap-6 w-full lg:max-w-2xl lg:mx-auto">
 
         {/* TPA selector */}
         {!running && (
@@ -621,7 +580,7 @@ export default function MonitorPage() {
             <button
               onClick={startSession}
               disabled={!modelReady}
-              className="flex-1 h-14 bg-primary text-white rounded-xl font-bold uppercase tracking-widest text-sm hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+              className="flex-1 h-12 sm:h-14 bg-primary text-white rounded-xl font-bold uppercase tracking-widest text-xs sm:text-sm hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {!modelReady
                 ? <span className="material-symbols-outlined animate-spin">progress_activity</span>
@@ -631,13 +590,16 @@ export default function MonitorPage() {
           ) : (
             <button
               onClick={stopSession}
-              className="flex-1 h-14 bg-error-container text-on-error-container rounded-xl font-bold uppercase tracking-widest text-sm hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+              className="flex-1 h-12 sm:h-14 bg-error-container text-on-error-container rounded-xl font-bold uppercase tracking-widest text-xs sm:text-sm hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-xl">stop</span>
               Stop session
             </button>
           )}
         </div>
+
+        {/* Clip queue */}
+        <ClipQueuePanel />
 
         {/* Live detections */}
         {running && detections.length > 0 && (

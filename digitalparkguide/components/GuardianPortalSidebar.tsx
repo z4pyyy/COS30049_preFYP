@@ -95,6 +95,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
 
     // HoD admin tools
     ...(isHod ? [
+      { href: '/dashboard?action=general-modules', icon: 'menu_book', label: 'General Modules', active: action === 'general-modules' },
       { href: '/dashboard?action=modules',      icon: 'school',     label: 'Training Modules', active: action === 'modules' || action === 'edit' || action === 'new' },
       { href: '/dashboard?action=applications', icon: 'person_add', label: 'Applications',      active: action === 'applications' },
       { href: '/dashboard/hod/badge-track',     icon: 'workspace_premium', label: 'Badge Track', active: pathname.startsWith('/dashboard/hod/badge-track') },

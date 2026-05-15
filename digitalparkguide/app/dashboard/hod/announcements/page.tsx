@@ -416,7 +416,7 @@ export default function AnnouncementsPage() {
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800">{a.category}</span>
                         <span className={`text-xs px-2 py-1 rounded-full ${a.published ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                          {a.published ? '✓ Published' : '⊝ Draft'}
+                          {a.published ? 'Published' : '⊝ Draft'}
                         </span>
                         {attachCount > 0 && (
                           <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700">

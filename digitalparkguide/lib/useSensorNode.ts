@@ -81,9 +81,12 @@ export function useSensorNode() {
     if (!mountedRef.current) return
 
     try {
-      const res = await fetch(SENSOR_URL, {
+      // ESP32 firmware must return `Access-Control-Allow-Private-Network: true`
+      // in its CORS preflight response for Chrome Private Network Access to work.
+      const res = await fetch(`${SENSOR_URL}?t=${Date.now()}`, {
         signal: AbortSignal.timeout(TIMEOUT_MS),
         cache:  'no-store',
+        headers: { 'Access-Control-Request-Private-Network': 'true' },
       })
 
       if (!res.ok) {

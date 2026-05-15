@@ -237,8 +237,14 @@ export function useDetection(
     if (timestamp - lastMpTime.current < MP_INTERVAL_MS) return
     lastMpTime.current = timestamp
 
-    const result: HandLandmarkerResult =
-      handLandmarkerRef.current.detectForVideo(video, timestamp)
+    let result: HandLandmarkerResult
+    try {
+      result = handLandmarkerRef.current.detectForVideo(video, timestamp)
+    } catch (err) {
+      console.warn('[MediaPipe] detectForVideo failed (WebGL context lost?):', err)
+      mediapipeReady.current = false
+      return
+    }
 
     if (result.landmarks.length === 0) {
       handLmsRef.current   = []

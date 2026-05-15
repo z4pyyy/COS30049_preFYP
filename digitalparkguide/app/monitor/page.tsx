@@ -290,6 +290,16 @@ export default function MonitorPage() {
         overlay.height = video.videoHeight
       }, { once: true })
 
+      // Graceful recovery when mobile OS kills camera (notification, screen lock, memory pressure)
+      const videoTrack = stream.getVideoTracks()[0]
+      if (videoTrack) {
+        videoTrack.addEventListener('ended', () => {
+          console.warn('[Camera] Video track ended unexpectedly')
+          stopSession()
+          showToast('Camera interrupted — session stopped', 'warning')
+        }, { once: true })
+      }
+
       frameCount.current = 0
       fpsFrames.current  = 0
       fpsTimer.current   = 0

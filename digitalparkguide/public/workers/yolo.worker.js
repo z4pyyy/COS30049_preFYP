@@ -6,13 +6,15 @@ importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort.min.
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const INPUT_SIZE = 640
-const CONF_THRESHOLD = 0.30
+const CONF_THRESHOLD = {
+  0: 0.45,  // hand
+  1: 0.45,  // person
+  2: 0.10,  // plant — lower threshold, model weaker on this class
+  3: 0.30,  // wildlife
+}
 const IOU_THRESHOLD  = 0.45
 const NUM_BOXES      = 8400
 const NUM_CLASSES    = 4
-
-// Per-class confidence overrides (falls back to CONF_THRESHOLD)
-const CLASS_CONF = { 1: 0.60 }
 
 const CLASS_NAMES = { 0: 'hand', 1: 'person', 2: 'plant', 3: 'wildlife' }
 
@@ -110,8 +112,7 @@ async function runInference(bitmap) {
       const score = output[(4 + c) * NUM_BOXES + i]
       if (score > bestScore) { bestScore = score; bestClass = c }
     }
-    const classConf = CLASS_CONF[bestClass] ?? CONF_THRESHOLD
-    if (bestScore < classConf || bestClass < 0) continue
+    if (bestScore < (CONF_THRESHOLD[bestClass] ?? 0.30) || bestClass < 0) continue
 
     // Raw coords in letterboxed 640×640 space → normalised 0-1 in original frame
     const cx = output[0 * NUM_BOXES + i]

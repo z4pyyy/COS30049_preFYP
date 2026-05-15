@@ -110,7 +110,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
   return (
     <>
       {/* Mobile menu trigger */}
-      <div className="lg:hidden sticky top-0 z-30 h-14 bg-slate-50 border-b border-outline-variant/20 flex items-center px-4">
+      <div className="lg:hidden sticky top-(--nav-height) z-30 h-14 bg-slate-50 border-b border-outline-variant/20 flex items-center px-4">
         <button
           type="button"
           aria-label="Open navigation"
@@ -134,7 +134,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
       )}
 
       <aside
-        className={`fixed left-0 top-0 lg:top-25 z-[70] lg:z-30 h-screen lg:h-[calc(100vh-6.25rem)] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 lg:top-(--nav-height) z-70 lg:z-30 h-screen lg:h-[calc(100vh-var(--nav-height))] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >

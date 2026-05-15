@@ -21,14 +21,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="bg-surface text-on-surface min-h-screen flex flex-col">
-      <TopNav context="Superadmin Console" />
-      <div className="flex flex-col lg:flex-row flex-1">
-        <AdminSidebar fullName={fullName} initials={initials} />
-        <main className="flex-1 flex flex-col lg:ml-64">
-          {children}
-        </main>
+    <>
+      <TopNav fixed context="Superadmin Console" />
+      <div
+        className="bg-surface text-on-surface min-h-screen flex flex-col"
+        style={{ paddingTop: "var(--nav-height, 93px)" }}
+      >
+        <div className="flex flex-col lg:flex-row flex-1">
+          <AdminSidebar fullName={fullName} initials={initials} />
+          <main className="flex-1 flex flex-col lg:ml-64">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

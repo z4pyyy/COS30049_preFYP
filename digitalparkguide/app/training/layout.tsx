@@ -26,12 +26,17 @@ export default async function TrainingLayout({ children }: { children: React.Rea
     .toUpperCase()
 
   return (
-    <div className="bg-surface text-on-surface min-h-screen flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <TopNav context={context} />
-      <div className="flex flex-col lg:flex-row flex-1">
-        <GuardianPortalSidebar fullName={fullName} initials={initials} />
-        <main className="flex-1 flex flex-col lg:ml-64">{children}</main>
+    <>
+      <TopNav fixed context={context} />
+      <div
+        className="bg-surface text-on-surface min-h-screen flex flex-col"
+        style={{ fontFamily: "'Inter', sans-serif", paddingTop: "var(--nav-height, 93px)" }}
+      >
+        <div className="flex flex-col lg:flex-row flex-1">
+          <GuardianPortalSidebar fullName={fullName} initials={initials} />
+          <main className="flex-1 flex flex-col lg:ml-64">{children}</main>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

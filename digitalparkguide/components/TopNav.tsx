@@ -35,7 +35,7 @@ async function getAuthSnapshot() {
   }
 }
 
-export default async function TopNav({ active, context }: { active?: NavKey; context?: string }) {
+export default async function TopNav({ active, context, fixed }: { active?: NavKey; context?: string; fixed?: boolean }) {
   const { user, role } = await getAuthSnapshot();
   return (
     <TopNavView
@@ -45,6 +45,7 @@ export default async function TopNav({ active, context }: { active?: NavKey; con
       email={user?.email ?? ""}
       role={role}
       context={context}
+      fixed={fixed}
     />
   );
 }

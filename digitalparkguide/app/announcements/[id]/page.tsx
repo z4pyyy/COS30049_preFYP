@@ -124,10 +124,6 @@ export default async function AnnouncementDetailPage({
                           className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest max-h-[600px] object-contain"
                         />
                       </a>
-                      <figcaption className="mt-2 flex items-center justify-between text-xs text-on-surface-variant">
-                        <span className="truncate">{b.name}</span>
-                        <span className="shrink-0">{formatBytes(b.size)}</span>
-                      </figcaption>
                     </figure>
                   )
                 }
@@ -139,10 +135,6 @@ export default async function AnnouncementDetailPage({
                         controls
                         className="w-full rounded-xl border border-outline-variant/30 bg-black max-h-[600px]"
                       />
-                      <figcaption className="mt-2 flex items-center justify-between text-xs text-on-surface-variant">
-                        <span className="truncate">{b.name}</span>
-                        <span className="shrink-0">{formatBytes(b.size)}</span>
-                      </figcaption>
                     </figure>
                   )
                 }

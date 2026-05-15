@@ -70,6 +70,9 @@
   --radius:    0.125rem;
   --radius-lg: 0.25rem;
   --radius-xl: 0.5rem;
+
+  /* Layout — top-nav offset: gov-strip (py-1.5 + text-[11px] lh-1.5 ≈ 29px) + header (h-16 = 64px) */
+  --nav-height: 93px;
 }
 
 /* Utility helpers that mirror Stitch design glass/overlay classes */

@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { hasMinRole, can, type AppRole } from "@/types/roles";
 import { ModuleEditorForm, ModuleEditorState } from "@/components/ModuleEditorForm";
+import { GeneralModuleEditorForm, GeneralModuleEditorState } from "@/components/GeneralModuleEditorForm";
 import { ModuleHistoryPanel } from "@/components/ModuleHistoryPanel";
 import TrainingProgressWidget from "@/components/TrainingProgressWidget";
+import GeneralModulesPrereq from "@/components/GeneralModulesPrereq";
 import MyBadgesWidget from "@/components/MyBadgesWidget";
 import { GuideBadgesSection } from "@/components/GuideBadgesSection";
 import type { BadgeRecord } from "@/lib/badges/insert-badge";
@@ -173,6 +175,13 @@ function DashboardContent() {
   const [processingApp, setProcessingApp] = useState<string | null>(null)
   const [appToast, setAppToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
+  // General modules state (HoD)
+  const [generalModules, setGeneralModules] = useState<{ id: string; title: string; description: string; content: string; tpa_ids: string[]; order_index: number; duration_hours: number; is_active: boolean }[]>([])
+  const [gmLoading, setGmLoading] = useState(false)
+  const [gmSaving, setGmSaving] = useState(false)
+  const [gmLoaded, setGmLoaded] = useState(false)
+  const [gmToast, setGmToast] = useState<{ msg: string; ok: boolean } | null>(null)
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -284,6 +293,81 @@ function DashboardContent() {
     } finally {
       setHistoryLoading(false)
     }
+  }
+
+  // ── General modules CRUD (HoD) ─────────────────────────────────────────────
+  const loadGeneralModules = async () => {
+    setGmLoading(true)
+    try {
+      const res = await fetch('/api/general-modules', { cache: 'no-store' })
+      const body = await res.json()
+      if (res.ok) setGeneralModules(body.modules ?? [])
+      setGmLoaded(true)
+    } finally {
+      setGmLoading(false)
+    }
+  }
+
+  function showGmToast(msg: string, ok: boolean) {
+    setGmToast({ msg, ok })
+    setTimeout(() => setGmToast(null), 4000)
+  }
+
+  async function handleGmCreate(data: GeneralModuleEditorState) {
+    setGmSaving(true)
+    try {
+      const res = await fetch('/api/general-modules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: data.title.trim(),
+          description: data.description.trim(),
+          content: data.content,
+          tpa_ids: data.tpa_ids,
+          order_index: data.order_index,
+          duration_hours: data.duration_hours,
+          is_active: data.is_active,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      setGmLoaded(false)
+      router.push('/dashboard?action=general-modules')
+    } finally {
+      setGmSaving(false)
+    }
+  }
+
+  async function handleGmUpdate(data: GeneralModuleEditorState) {
+    if (!data.id) return
+    setGmSaving(true)
+    try {
+      const res = await fetch(`/api/general-modules/${data.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: data.title.trim(),
+          description: data.description.trim(),
+          content: data.content,
+          tpa_ids: data.tpa_ids,
+          order_index: data.order_index,
+          duration_hours: data.duration_hours,
+          is_active: data.is_active,
+        }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      setGmLoaded(false)
+      router.push('/dashboard?action=general-modules')
+    } finally {
+      setGmSaving(false)
+    }
+  }
+
+  async function handleGmDelete(id: string) {
+    if (!confirm('Delete this general module? This cannot be undone.')) return
+    const res = await fetch(`/api/general-modules/${id}`, { method: 'DELETE' })
+    if (!res.ok) { const d = await res.json(); showGmToast(d.error || 'Delete failed.', false); return }
+    showGmToast('Module deleted.', true)
+    await loadGeneralModules()
   }
 
   function openCreateTrack() {
@@ -644,6 +728,155 @@ function DashboardContent() {
     return null
   }
 
+  // General Modules — Edit View
+  if (hasMinRole(userRole, 'HOD') && action === 'gm-edit' && moduleId) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] p-6">
+        <div className="max-w-4xl mx-auto">
+          <button
+            onClick={() => router.push('/dashboard?action=general-modules')}
+            className="mb-6 text-[#2D6A3F] hover:text-[#1B3A24] font-medium flex items-center gap-2"
+          >
+            ← Back to General Modules
+          </button>
+          <div className="bg-white rounded-lg p-8 shadow-sm">
+            <GeneralModuleEditorForm
+              moduleId={moduleId}
+              onSubmit={handleGmUpdate}
+              onCancel={() => router.push('/dashboard?action=general-modules')}
+              isLoading={gmSaving}
+              trainingTracks={trainingTracks.filter(t => !t.is_archived)}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // General Modules — Create View
+  if (hasMinRole(userRole, 'HOD') && action === 'gm-new') {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] p-6">
+        <div className="max-w-4xl mx-auto">
+          <button
+            onClick={() => router.push('/dashboard?action=general-modules')}
+            className="mb-6 text-[#2D6A3F] hover:text-[#1B3A24] font-medium flex items-center gap-2"
+          >
+            ← Back to General Modules
+          </button>
+          <div className="bg-white rounded-lg p-8 shadow-sm">
+            <GeneralModuleEditorForm
+              onSubmit={handleGmCreate}
+              onCancel={() => router.push('/dashboard?action=general-modules')}
+              isLoading={gmSaving}
+              trainingTracks={trainingTracks.filter(t => !t.is_archived)}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // General Modules — List View (HoD)
+  if (hasMinRole(userRole, 'HOD') && action === 'general-modules') {
+    if (!gmLoaded && !gmLoading) loadGeneralModules()
+
+    return (
+      <div className="min-h-screen bg-[#f8fafc] p-6">
+        <div className="max-w-6xl mx-auto">
+          {gmToast && (
+            <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-sm font-semibold text-white ${gmToast.ok ? 'bg-emerald-700' : 'bg-red-700'}`}>
+              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>{gmToast.ok ? 'check_circle' : 'error'}</span>
+              {gmToast.msg}
+            </div>
+          )}
+
+          <div className="mb-8 flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-[#1B3A24] mb-2">General Training Modules</h1>
+              <p className="text-[#64748b]">
+                Park-agnostic modules all guides must complete before TPA enrolment.
+              </p>
+            </div>
+            <button
+              onClick={() => router.push('/dashboard?action=gm-new')}
+              className="px-6 py-2.5 bg-[#2D6A3F] text-white font-medium rounded-lg hover:bg-[#1B3A24] transition-colors flex items-center gap-2"
+            >
+              ✨ Create New Module
+            </button>
+          </div>
+
+          {gmLoading ? (
+            <div className="bg-white rounded-lg p-12 text-center shadow-sm">
+              <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-3xl">progress_activity</span>
+              <p className="text-sm text-[#64748b] mt-2">Loading general modules…</p>
+            </div>
+          ) : generalModules.length === 0 ? (
+            <div className="bg-white rounded-lg p-12 text-center shadow-sm">
+              <div className="text-4xl mb-3">📚</div>
+              <h3 className="text-lg font-semibold text-[#1B3A24] mb-1">No modules yet</h3>
+              <p className="text-[#64748b] mb-6">Create your first general training module to get started</p>
+              <button onClick={() => router.push('/dashboard?action=gm-new')} className="px-6 py-2.5 bg-[#2D6A3F] text-white font-medium rounded-lg hover:bg-[#1B3A24]">Create Module</button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-sm overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+                <thead>
+                  <tr className="border-b border-[#e2e8f0] bg-[#f8fafc]">
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">#</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Module Title</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Description</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">TPAs</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Status</th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs font-semibold text-[#1B3A24]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {generalModules.map((m, idx) => (
+                    <tr key={m.id} className={`border-b border-[#e2e8f0] ${idx % 2 === 0 ? 'bg-white' : 'bg-[#f8fafc]'}`}>
+                      <td className="px-4 sm:px-6 py-4">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-black">{m.order_index + 1}</span>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4"><p className="font-medium text-[#1B3A24]">{m.title}</p></td>
+                      <td className="px-4 sm:px-6 py-4"><p className="text-sm text-[#475569] line-clamp-2">{m.description || '—'}</p></td>
+                      <td className="px-4 sm:px-6 py-4">
+                        {m.tpa_ids.length === 0 ? (
+                          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">All TPAs</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {m.tpa_ids.map(tid => {
+                              const track = trainingTracks.find(t => t.id === tid)
+                              return (
+                                <span key={tid} className="inline-block px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded">
+                                  {track ? track.tpa_name : tid.slice(0, 8)}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4">
+                        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${m.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {m.is_active ? 'Published' : 'Draft'}
+                        </span>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => router.push(`/dashboard?action=gm-edit&id=${m.id}`)} className="px-3 py-1 text-sm font-medium text-[#2D6A3F] hover:bg-[#f0f4f8] rounded transition-colors">✎ Edit</button>
+                          <button onClick={() => handleGmDelete(m.id)} className="px-3 py-1 text-sm font-medium text-red-600 hover:bg-red-50 rounded transition-colors">🗑 Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // Modules list (HoD)
   if (hasMinRole(userRole, 'GUIDE') && action === 'modules') {
     const isHodView = hasMinRole(userRole, 'HOD')
@@ -747,7 +980,7 @@ function DashboardContent() {
                         </td>
                         <td className="px-4 sm:px-6 py-4">
                           <span className={module.is_active ? 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800' : 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800'}>
-                            {module.is_active ? '✓ Published' : '⊝ Draft'}
+                            {module.is_active ? 'Published' : '⊝ Draft'}
                           </span>
                         </td>
                         <td className="px-4 sm:px-6 py-4"><p className="text-sm text-[#64748b]">{new Date(module.created_at).toLocaleDateString()}</p></td>
@@ -1305,6 +1538,8 @@ function DashboardContent() {
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">{heading}</h1>
           <p className="text-sm text-[#64748b] mt-1">{subheading}</p>
         </div>
+
+        {widgetMode === 'guide' && <GeneralModulesPrereq />}
 
         <TrainingProgressWidget mode={widgetMode} />
 

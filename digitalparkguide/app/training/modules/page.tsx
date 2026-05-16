@@ -64,7 +64,7 @@ export default async function GuideTrainingModulesPage({
   // No enrollments → send to tracks page to enroll first
   if (enrolledTrackIds.size === 0) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-6">
+      <section className="p-4 sm:p-6 lg:p-8 flex flex-1 items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-3xl border border-[#e2e8f0] p-10 shadow-sm text-center">
           <span className="material-symbols-outlined text-5xl text-[#cbd5e1] mb-4 block">lock</span>
           <h2 className="text-2xl font-black text-[#1B3A24] mb-3">No Active Tracks</h2>
@@ -79,7 +79,7 @@ export default async function GuideTrainingModulesPage({
             Browse & Activate Tracks
           </Link>
         </div>
-      </div>
+      </section>
     )
   }
 
@@ -122,12 +122,14 @@ export default async function GuideTrainingModulesPage({
 
   if (modulesError) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] py-16 px-6">
-        <div className="max-w-4xl mx-auto rounded-3xl bg-white p-10 shadow-lg">
-          <h1 className="text-3xl font-bold text-[#1B3A24] mb-4">Training Modules</h1>
+      <section className="p-4 sm:p-6 lg:p-8 space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">Training Modules</h1>
+        </div>
+        <div className="rounded-3xl bg-white p-10 shadow-lg">
           <p className="text-[#64748b]">Unable to load modules right now. Please try again later.</p>
         </div>
-      </div>
+      </section>
     )
   }
 
@@ -187,18 +189,15 @@ export default async function GuideTrainingModulesPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        <div className="mb-10">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-[#8DC63F]">Guide Portal</p>
-              <h1 className="text-4xl font-black text-[#1B3A24] mt-3">Training Modules</h1>
-              <p className="text-[#64748b] mt-3 max-w-2xl">
-                Your active track modules. Complete each in order to earn your park certification.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
+    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">Training Modules</h1>
+          <p className="text-sm text-[#64748b] mt-1">
+            Your active track modules. Complete each in order to earn your park certification.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
               <Link
                 href="/training/tracks"
                 className="inline-flex items-center gap-2 rounded-full border border-[#cbd5e1] bg-white px-5 py-3 text-sm font-semibold text-[#1B3A24] hover:border-[#94a3b8] transition"
@@ -206,11 +205,10 @@ export default async function GuideTrainingModulesPage({
                 <span className="material-symbols-outlined text-sm">trophy</span>
                 My Tracks
               </Link>
-            </div>
-          </div>
         </div>
+      </div>
 
-        {/* Track progress summary — one chip per enrolled track */}
+      {/* Track progress summary — one chip per enrolled track */}
         {enrolledTracks.length > 0 && (
           <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {enrolledTracks.map(track => {
@@ -375,7 +373,6 @@ export default async function GuideTrainingModulesPage({
             )
           })
         )}
-      </main>
-    </div>
+    </section>
   )
 }

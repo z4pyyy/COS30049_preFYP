@@ -140,29 +140,31 @@ export default function QuizResultsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
-        <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-4xl">progress_activity</span>
-      </div>
+      <section className="p-4 sm:p-6 lg:p-8 space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">Quiz Results</h1>
+          <p className="text-sm text-[#64748b] mt-1">Loading…</p>
+        </div>
+        <div className="flex justify-center py-16">
+          <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-4xl">progress_activity</span>
+        </div>
+      </section>
     )
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-sm text-red-700">{error}</div>
-        </div>
-      </div>
+      <section className="p-4 sm:p-6 lg:p-8">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-sm text-red-700">{error}</div>
+      </section>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Header */}
         <div>
-          <p className="text-xs uppercase tracking-widest text-[#8DC63F] font-bold">Results</p>
-          <h1 className="text-3xl font-black text-[#1B3A24] mt-1">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">
             {isGuide ? 'My Quiz Results' : 'Quiz Results'}
           </h1>
           <p className="text-sm text-[#64748b] mt-1">
@@ -279,7 +281,6 @@ export default function QuizResultsPage() {
             )
           })
         )}
-      </div>
-    </div>
+    </section>
   )
 }

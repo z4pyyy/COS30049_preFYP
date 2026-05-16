@@ -133,12 +133,12 @@ export default function SeniorInterviewsPage() {
   const scheduled = rows.filter(r => r.stage === 'PENDING_INTERVIEW' && r.interview_date)
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
       <StatusPopup message={popup?.msg ?? null} type={popup?.type ?? 'success'} onClose={clearPopup} />
 
-      <div className="mb-8 border-b pb-4">
-        <h1 className="text-3xl font-black text-[#1B3A24]">Certification Interviews</h1>
-        <p className="text-gray-500">Manage interview scheduling and record outcomes for your assigned guides.</p>
+      <div>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">Certification Interviews</h1>
+        <p className="text-sm text-[#64748b] mt-1">Manage interview scheduling and record outcomes for your assigned guides.</p>
       </div>
 
       {loading ? (
@@ -159,9 +159,9 @@ export default function SeniorInterviewsPage() {
                 <span className="material-symbols-outlined text-amber-500">schedule</span>
                 Awaiting Interview ({needsScheduling.length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-6">
                 {needsScheduling.map(r => (
-                  <div key={r.id} className="bg-white rounded-xl border border-amber-200 p-5">
+                  <div key={r.id} className="bg-white rounded-2xl border border-[#e2e8f0] p-5">
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <p className="font-bold text-gray-900">{r.guide_name}</p>
@@ -217,9 +217,9 @@ export default function SeniorInterviewsPage() {
                 <span className="material-symbols-outlined text-emerald-500">event</span>
                 Scheduled Interviews ({scheduled.length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-6">
                 {scheduled.map(r => (
-                  <div key={r.id} className="bg-white rounded-xl border border-emerald-200 p-5">
+                  <div key={r.id} className="bg-white rounded-2xl border border-[#e2e8f0] p-5">
                     <div className="flex items-center justify-between mb-2">
                       <div>
                         <p className="font-bold text-gray-900">{r.guide_name}</p>
@@ -277,6 +277,6 @@ export default function SeniorInterviewsPage() {
           )}
         </>
       )}
-    </div>
+    </section>
   )
 }

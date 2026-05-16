@@ -6,7 +6,7 @@ import NotificationBell from "@/components/NotificationBell";
 import LangSwitcher from "@/components/LangSwitcher";
 import type { AppRole } from "@/types/roles";
 
-type NavKey = "home" | "training" | "announcements"  | "about";
+type NavKey = "home" | "training" | "announcements" | "about";
 
 export interface TopNavViewProps {
   active?: NavKey;

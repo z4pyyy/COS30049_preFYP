@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import TopNavView from "@/components/TopNavView";
 import type { AppRole } from "@/types/roles";
 
-type NavKey = "home" | "training" | "announcements" | "biodiversity" | "about";
+type NavKey = "home" | "training" | "announcements" | "about";
 
 export default function TopNavClient({ active, context }: { active?: NavKey; context?: string }) {
   const [authed, setAuthed] = useState(false);

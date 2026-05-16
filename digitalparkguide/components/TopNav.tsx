@@ -5,7 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 import TopNavView from "@/components/TopNavView";
 import type { AppRole } from "@/types/roles";
 
-type NavKey = "home" | "training" | "announcements" | "biodiversity" | "about";
+type NavKey = "home" | "training" | "announcements" | "about";
 
 async function getAuthSnapshot() {
   try {

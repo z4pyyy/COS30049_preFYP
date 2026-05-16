@@ -249,7 +249,7 @@ export default async function GuideTrainingModulesPage({
                   <option key={tpa} value={tpa}>{tpa}</option>
                 ))}
               </select>
-              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-base text-[#94a3b8] pointer-events-none">
+              <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-base text-[#94a3b8] pointer-events-none" translate="no">
                 expand_more
               </span>
             </div>

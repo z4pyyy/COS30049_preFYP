@@ -59,9 +59,9 @@ function TpaFilterDropdown({
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#d1d9e0] bg-white text-sm font-semibold text-[#1B3A24] hover:border-[#2D6A3F] transition-all min-w-[220px]"
       >
-        <span className="material-symbols-outlined text-base text-[#2D6A3F]">filter_list</span>
+        <span className="material-symbols-outlined text-base text-[#2D6A3F]" translate="no">filter_list</span>
         <span className="flex-1 text-left truncate">{label}</span>
-        <span className="material-symbols-outlined text-base text-[#94a3b8]">
+        <span className="material-symbols-outlined text-base text-[#94a3b8]" translate="no">
           {open ? 'expand_less' : 'expand_more'}
         </span>
       </button>

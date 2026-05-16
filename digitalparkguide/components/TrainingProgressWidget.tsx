@@ -147,7 +147,7 @@ export default function TrainingProgressWidget({ mode }: Props) {
               className="text-xs font-semibold text-[#2D6A3F] hover:underline flex items-center gap-1"
             >
               View all modules
-              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              <span className="material-symbols-outlined text-sm" translate="no">arrow_forward</span>
             </Link>
           </div>
           <div className="divide-y divide-[#e2e8f0]">

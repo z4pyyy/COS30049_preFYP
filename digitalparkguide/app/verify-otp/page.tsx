@@ -157,7 +157,7 @@ function VerifyOtpForm() {
           <div className="mb-10">
             <h3 className="text-on-surface text-3xl font-black tracking-tight mb-2">Check Your Email</h3>
             <p className="text-secondary font-medium">
-              We sent a 6-digit code to{" "}
+              We sent a 8-digit code to{" "}
               <span className="text-on-surface font-bold">{email || "your email"}</span>
             </p>
           </div>

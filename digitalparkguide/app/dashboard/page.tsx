@@ -905,7 +905,7 @@ function DashboardContent() {
               <div className="flex items-center gap-3">
                 <button onClick={() => setShowArchivedModules(v => !v)}
                   className="px-4 py-2.5 border border-gray-200 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2">
-                  <span className="material-symbols-outlined text-base">inventory_2</span>
+                  <span className="material-symbols-outlined text-base" translate="no">inventory_2</span>
                   Archived ({archivedModules.length})
                 </button>
                 <button onClick={() => router.push('/dashboard?action=new')}
@@ -1431,7 +1431,7 @@ function DashboardContent() {
                       <button onClick={() => setExpandedApp(isOpen ? null : app.id)}
                         className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-primary transition-colors shrink-0 px-3 py-2 rounded-lg hover:bg-gray-50">
                         {isOpen ? "Collapse" : "Review"}
-                        <span className="material-symbols-outlined text-base">{isOpen ? "expand_less" : "expand_more"}</span>
+                        <span className="material-symbols-outlined text-base" translate="no">{isOpen ? "expand_less" : "expand_more"}</span>
                       </button>
                     </div>
 

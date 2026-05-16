@@ -34,7 +34,7 @@ export default async function TrainingLayout({ children }: { children: React.Rea
       >
         <div className="flex flex-col lg:flex-row flex-1">
           <GuardianPortalSidebar fullName={fullName} initials={initials} />
-          <main className="flex-1 flex flex-col lg:ml-64">{children}</main>
+          <main className="flex-1 flex flex-col lg:ml-72">{children}</main>
         </div>
       </div>
     </>

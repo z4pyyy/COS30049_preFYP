@@ -29,7 +29,8 @@ function LoginForm() {
   const supabase = createClient();
   const { showToast, toastEl } = useToast();
 
-  const [adminBlocked, setAdminBlocked] = useState(false);
+  const [adminBlocked,   setAdminBlocked]   = useState(false);
+  const [showPassword,   setShowPassword]   = useState(false);
 
   async function handleGoogleSignIn() {
     setOauthLoading(true); setError(null);
@@ -190,11 +191,21 @@ function LoginForm() {
                 <div className="relative group">
                   <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline group-focus-within:text-primary transition-colors">lock</span>
                   <input
-                    type="password" required value={password}
+                    type={showPassword ? "text" : "password"} required value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full h-14 pl-12 pr-4 bg-surface-container-high border-0 rounded-xl focus:ring-2 focus:ring-surface-tint focus:bg-white transition-all placeholder:text-outline/50 font-medium outline-none"
+                    className="w-full h-14 pl-12 pr-12 bg-surface-container-high border-0 rounded-xl focus:ring-2 focus:ring-surface-tint focus:bg-white transition-all placeholder:text-outline/50 font-medium outline-none"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[20px]" translate="no">
+                      {showPassword ? "visibility_off" : "visibility"}
+                    </span>
+                  </button>
                 </div>
               </div>
 

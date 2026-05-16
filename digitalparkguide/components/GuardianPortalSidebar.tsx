@@ -118,7 +118,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
           onClick={() => setOpen(true)}
           className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-emerald-50 text-slate-700"
         >
-          <span className="material-symbols-outlined">menu</span>
+          <span className="material-symbols-outlined" translate="no">menu</span>
         </button>
         <p className="ml-3 text-[0.6875rem] uppercase tracking-widest text-slate-500 font-bold">
           {isHod ? 'HoD Menu' : isSenior ? 'Senior Menu' : 'Guide Menu'}
@@ -134,7 +134,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
       )}
 
       <aside
-        className={`fixed left-0 top-0 lg:top-(--nav-height) z-70 lg:z-30 h-screen lg:h-[calc(100vh-var(--nav-height))] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 lg:top-(--nav-height) z-70 lg:z-30 h-screen lg:h-[calc(100vh-var(--nav-height))] w-72 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -145,7 +145,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
             onClick={() => setOpen(false)}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 text-slate-600 -mr-2"
           >
-            <span className="material-symbols-outlined text-lg">close</span>
+            <span className="material-symbols-outlined text-lg" translate="no">close</span>
           </button>
         </div>
 
@@ -154,12 +154,12 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
             <Link
               key={label}
               href={href}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-sm font-medium uppercase tracking-widest ${
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 text-xs font-medium uppercase tracking-wide ${
                 active ? 'bg-emerald-100 text-emerald-900 translate-x-1' : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-900'
               }`}
             >
-              <span className={`material-symbols-outlined text-xl ${active ? '' : 'group-hover:text-emerald-700'}`}>{icon}</span>
-              {label}
+              <span className={`material-symbols-outlined text-xl shrink-0 ${active ? '' : 'group-hover:text-emerald-700'}`} translate="no">{icon}</span>
+              <span className="whitespace-nowrap">{label}</span>
             </Link>
           ))}
         </nav>
@@ -169,7 +169,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
             onClick={handleSignOut}
             className="w-full flex items-center gap-3 text-slate-500 px-4 py-2 hover:bg-slate-100 rounded-xl transition-all"
           >
-            <span className="material-symbols-outlined text-base">logout</span>
+            <span className="material-symbols-outlined text-base shrink-0" translate="no">logout</span>
             <span className="font-medium text-[0.6875rem] uppercase tracking-widest">Sign Out</span>
           </button>
           <BackToSiteButton />

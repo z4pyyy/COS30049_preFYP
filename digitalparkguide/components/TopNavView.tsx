@@ -3,6 +3,7 @@
 import Link from "next/link";
 import ProfileDropdown from "@/components/ProfileDropdown";
 import NotificationBell from "@/components/NotificationBell";
+import LangSwitcher from "@/components/LangSwitcher";
 import type { AppRole } from "@/types/roles";
 
 type NavKey = "home" | "training" | "announcements"  | "about";
@@ -41,12 +42,8 @@ export default function TopNavView({ active, authed, name, email, role, context,
       {/* Gov-style top strip — flush to screen edges */}
       <div className="bg-primary text-white text-[11px] py-1.5 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="flex items-center justify-between gap-2">
-          <span className="opacity-60 truncate">Portal Rasmi | Sarawak Forestry Corporation</span>
-          <div className="flex items-center gap-4 opacity-60 shrink-0">
-            <a href="#" className="hover:opacity-100">BM</a>
-            <span>|</span>
-            <a href="#" className="hover:opacity-100">EN</a>
-          </div>
+          <span className="opacity-60 truncate" translate="no">Portal Rasmi | Sarawak Forestry Corporation</span>
+          <LangSwitcher />
         </div>
       </div>
 
@@ -55,7 +52,7 @@ export default function TopNavView({ active, authed, name, email, role, context,
         <div className="px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
             {/* Brand + role context */}
-            <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0" translate="no">
               <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center shrink-0">
                 <span className="text-white text-lg">🌿</span>
               </div>
@@ -100,7 +97,7 @@ export default function TopNavView({ active, authed, name, email, role, context,
                       href="/apply-guide"
                       className="flex items-center gap-1.5 bg-primary text-white px-3 sm:px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                     >
-                      <span className="text-base leading-none">✦</span>
+                      <span className="text-base leading-none" translate="no">✦</span>
                       <span className="hidden sm:inline">Register as Guide</span>
                       <span className="sm:hidden">Register</span>
                     </Link>
@@ -110,7 +107,7 @@ export default function TopNavView({ active, authed, name, email, role, context,
                         href={dashboardHref(role)}
                         className="flex items-center gap-1.5 bg-primary text-white px-2.5 sm:px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                       >
-                        <span className="material-symbols-outlined text-base leading-none">dashboard</span>
+                        <span className="material-symbols-outlined text-base leading-none" translate="no">dashboard</span>
                         <span className="hidden sm:inline">Dashboard</span>
                       </Link>
                       <NotificationBell />

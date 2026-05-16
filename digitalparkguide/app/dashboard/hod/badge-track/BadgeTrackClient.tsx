@@ -729,7 +729,7 @@ export default function BadgeTrackClient({
 
                           <PipelineStepper stage={r.stage} />
 
-                          <span className="material-symbols-outlined text-[#94a3b8] ml-2">
+                          <span className="material-symbols-outlined text-[#94a3b8] ml-2" translate="no">
                             {isExpanded ? 'expand_less' : 'expand_more'}
                           </span>
                         </button>

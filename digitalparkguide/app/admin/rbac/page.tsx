@@ -180,7 +180,7 @@ export default function RbacPage() {
                         ))}
                       </div>
 
-                      <span className="material-symbols-outlined text-on-surface-variant text-xl ml-2">
+                      <span className="material-symbols-outlined text-on-surface-variant text-xl ml-2" translate="no">
                         {isOpen ? "expand_less" : "expand_more"}
                       </span>
                     </button>

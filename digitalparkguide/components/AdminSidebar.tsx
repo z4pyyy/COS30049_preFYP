@@ -46,7 +46,7 @@ export default function AdminSidebar({
           onClick={() => setOpen(true)}
           className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-emerald-50 text-slate-700"
         >
-          <span className="material-symbols-outlined">menu</span>
+          <span className="material-symbols-outlined" translate="no">menu</span>
         </button>
         <p className="ml-3 text-[0.6875rem] uppercase tracking-widest text-slate-500 font-bold">Superadmin Menu</p>
       </div>
@@ -62,7 +62,7 @@ export default function AdminSidebar({
 
       {/* Sidebar — sits below the TopNav on desktop */}
       <aside
-        className={`fixed left-0 top-0 lg:top-(--nav-height) z-70 lg:z-30 h-screen lg:h-[calc(100vh-var(--nav-height))] w-64 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 lg:top-(--nav-height) z-70 lg:z-30 h-screen lg:h-[calc(100vh-var(--nav-height))] w-72 bg-slate-50 flex flex-col p-4 border-r border-outline-variant/20 transition-transform duration-300 lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -73,7 +73,7 @@ export default function AdminSidebar({
             onClick={() => setOpen(false)}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-emerald-50 text-slate-600 -mr-2"
           >
-            <span className="material-symbols-outlined text-lg">close</span>
+            <span className="material-symbols-outlined text-lg" translate="no">close</span>
           </button>
         </div>
 
@@ -84,8 +84,8 @@ export default function AdminSidebar({
               href={href}
               className="flex items-center gap-3 text-slate-600 px-4 py-3 hover:bg-emerald-50 hover:text-emerald-900 rounded-xl transition-all group"
             >
-              <span className="material-symbols-outlined text-xl group-hover:text-emerald-700">{icon}</span>
-              <span className="font-medium text-sm uppercase tracking-widest">{label}</span>
+              <span className="material-symbols-outlined text-xl shrink-0 group-hover:text-emerald-700" translate="no">{icon}</span>
+              <span className="font-medium text-xs uppercase tracking-wide whitespace-nowrap">{label}</span>
             </Link>
           ))}
         </nav>

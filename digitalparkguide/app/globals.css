@@ -97,6 +97,27 @@ body {
   color: var(--color-on-background);
 }
 
+/* Google Translate wraps translated text nodes in <font class="_"> elements.
+   display:contents makes them layout-transparent so flex/grid containers
+   see the text directly, preserving all spacing and alignment. */
+body font {
+  display: contents !important;
+}
+
+/* Suppress Google Translate default UI — keep engine, hide chrome */
+.goog-te-banner-frame,
+.goog-te-balloon-frame,
+.goog-tooltip,
+.goog-tooltip:hover,
+#goog-gt-tt,
+.skiptranslate iframe {
+  display: none !important;
+}
+/* Prevent GT from pushing body down 40px */
+body {
+  top: 0 !important;
+}
+
 @keyframes popIn {
   0% { opacity: 0; transform: scale(0.85) translateY(10px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }

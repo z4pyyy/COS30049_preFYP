@@ -47,10 +47,11 @@ export default function ProfileDropdown({ name, email }: Props) {
         <button
           onClick={() => setOpen((o) => !o)}
           title={name || email}
+          translate="no"
           className="w-9 h-9 rounded-full bg-[#012d1d] flex items-center justify-center text-white text-sm font-bold hover:bg-[#024a2f] transition-colors ring-2 ring-[#012d1d]/20 hover:ring-[#012d1d]/40 active:scale-95"
         >
           {signingOut
-            ? <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
+            ? <span className="material-symbols-outlined text-base animate-spin" translate="no">progress_activity</span>
             : initial
           }
         </button>
@@ -59,7 +60,7 @@ export default function ProfileDropdown({ name, email }: Props) {
         {open && !signingOut && (
           <div className="absolute right-0 top-11 w-52 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
             {/* User info */}
-            <div className="px-4 py-3 border-b border-gray-100">
+            <div className="px-4 py-3 border-b border-gray-100" translate="no">
               <p className="text-xs font-bold text-gray-900 truncate">{name || "User"}</p>
               <p className="text-[11px] text-gray-400 truncate">{email}</p>
             </div>
@@ -70,7 +71,7 @@ export default function ProfileDropdown({ name, email }: Props) {
                 onClick={handleSignOut}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors active:bg-red-100"
               >
-                <span className="material-symbols-outlined text-[18px]">logout</span>
+                <span className="material-symbols-outlined text-[18px]" translate="no">logout</span>
                 Sign Out
               </button>
             </div>

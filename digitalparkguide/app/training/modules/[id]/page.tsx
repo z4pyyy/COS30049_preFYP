@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { hasMinRole, type AppRole } from '@/types/roles'
-import { ModuleContentViewer } from '@/components/ModuleContentViewer'
+import { ModuleContentViewer, type Asset } from '@/components/ModuleContentViewer'
 
 interface PageProps { params: Promise<{ id: string }> }
 
@@ -82,12 +82,14 @@ export default async function ModuleDetailPage({ params }: PageProps) {
   const track = (module.training_tracks as any)
 
   return (
-    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-[#64748b]">
-        <Link href="/training/modules" className="hover:text-[#2D6A3F] transition">Training Modules</Link>
-        <span className="material-symbols-outlined text-sm">chevron_right</span>
-      </nav>
+    <div className="min-h-screen bg-[#f8fafc]">
+      <main className="max-w-4xl mx-auto px-6 py-10">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm text-[#64748b] mb-6">
+          <Link href="/training/modules" className="hover:text-[#2D6A3F] transition">Training Modules</Link>
+          <span className="material-symbols-outlined text-sm" translate="no">chevron_right</span>
+          <span className="text-[#1B3A24] font-medium">{module.title}</span>
+        </div>
 
       {/* Page title */}
       <div>
@@ -124,12 +126,13 @@ export default async function ModuleDetailPage({ params }: PageProps) {
       <ModuleContentViewer
           moduleId={id}
           content={module.content || ''}
-          assets={(assets as any[]) || []}
+          assets={(assets ?? []) as Asset[]}
           initialProgress={progress ?? null}
           quizId={quiz?.id ?? null}
           trackQuizUnlocked={moduleQuizUnlocked}
           quizPassedAt={quizPassedAt}
         />
-    </section>
+      </main>
+    </div>
   )
 }

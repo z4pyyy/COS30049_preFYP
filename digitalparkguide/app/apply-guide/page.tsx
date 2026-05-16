@@ -76,7 +76,7 @@ export default function ApplyGuidePage() {
           .order("submitted_at", { ascending: false }).limit(1).maybeSingle(),
         supabase.from("training_tracks")
           .select("id, title, tpa_name, duration_weeks, eligibility")
-          .eq("track_type", "GUIDE").eq("is_open", true).order("tpa_name"),
+          .eq("track_type", "GUIDE").eq("is_open", true).eq("is_archived", false).order("tpa_name"),
       ]);
 
       if (profile && ["GUIDE","SENIOR_GUIDE","HOD","SUPERADMIN"].includes(profile.role)) {

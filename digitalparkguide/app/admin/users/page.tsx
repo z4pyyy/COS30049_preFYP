@@ -96,7 +96,7 @@ export default function UsersPage() {
 
   return (
     <>
-      <header className="bg-emerald-950/95 backdrop-blur-xl sticky top-0 z-50 flex justify-between items-center px-10 py-4 shadow-lg">
+      <header className="bg-emerald-950/95 backdrop-blur-xl flex justify-between items-center px-10 py-4 shadow-lg">
         <div>
           <h1 className="text-white font-black text-lg tracking-tight">User Management</h1>
           <p className="text-emerald-400/60 text-[0.625rem] uppercase tracking-widest">

@@ -404,10 +404,10 @@ export default function MonitorPage() {
             <span className="material-symbols-outlined text-primary-fixed text-lg sm:text-xl">videocam</span>
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm sm:text-base font-black uppercase tracking-tight text-on-surface leading-none">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">
               AI Monitoring
             </h1>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-secondary mt-0.5">
+            <p className="text-sm text-[#64748b] mt-1">
               Conservation Enforcement
             </p>
           </div>

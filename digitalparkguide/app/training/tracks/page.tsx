@@ -134,22 +134,20 @@ export default async function GuideTracksPage({
   const enrolledCount = enrolledIds.size
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
       <Suspense fallback={null}>
         <PaymentStatusModal />
       </Suspense>
-      <main className="max-w-6xl mx-auto px-6 py-12">
-        {/* Header */}
-        <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-[#8DC63F]">Guide Portal</p>
-            <h1 className="text-4xl font-black text-[#1B3A24] mt-3">Training Tracks</h1>
-            <p className="text-[#64748b] mt-3 max-w-2xl">
-              Activate a training track to unlock its modules. Each track is tied to a specific
-              Totally Protected Area (TPA) and certification level.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
+      {/* Header */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">Training Tracks</h1>
+          <p className="text-sm text-[#64748b] mt-1">
+            Activate a training track to unlock its modules. Each track is tied to a specific
+            Totally Protected Area (TPA) and certification level.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
             {enrolledCount > 0 && (
               <Link
                 href="/training/modules"
@@ -287,7 +285,6 @@ export default async function GuideTracksPage({
             </section>
           ))
         )}
-      </main>
-    </div>
+    </section>
   )
 }

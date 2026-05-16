@@ -71,19 +71,25 @@ export default function SeniorGroupPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
-        <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-4xl">progress_activity</span>
-      </div>
+      <section className="p-4 sm:p-6 lg:p-8 space-y-6">
+        <div>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">My Group</h1>
+          <p className="text-sm text-[#64748b] mt-1">Loading…</p>
+        </div>
+        <div className="flex justify-center py-16">
+          <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-4xl">progress_activity</span>
+        </div>
+      </section>
     )
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#f8fafc] p-6">
-        <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-700">
+      <section className="p-4 sm:p-6 lg:p-8">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-700">
           {error}
         </div>
-      </div>
+      </section>
     )
   }
 
@@ -102,12 +108,10 @@ export default function SeniorGroupPage() {
   ).length
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Header */}
         <div>
-          <p className="text-xs uppercase tracking-widest text-[#8DC63F] font-bold">Senior Portal</p>
-          <h1 className="text-3xl font-black text-[#1B3A24] mt-1">My Group</h1>
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">My Group</h1>
           <p className="text-sm text-[#64748b] mt-1">
             Guides currently assigned to your leadership. Reassignments are handled by HoD.
           </p>
@@ -231,8 +235,7 @@ export default function SeniorGroupPage() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </section>
   )
 }
 

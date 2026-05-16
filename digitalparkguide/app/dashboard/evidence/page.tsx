@@ -103,14 +103,14 @@ export default function EvidencePage() {
   const pendingCount = clips.filter(c => c.status === 'pending_review').length
 
   return (
-    <div className="flex-1 flex flex-col p-6 gap-6">
+    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-xl font-black uppercase tracking-tight text-on-surface">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">
             Evidence Review
           </h1>
-          <p className="text-xs text-on-surface-variant mt-0.5">
+          <p className="text-sm text-[#64748b] mt-1">
             {loading ? 'Loading…' : (
               <>Showing {clips.length} clip{clips.length !== 1 ? 's' : ''}
               {pendingCount > 0 && <> · <span className="text-blue-600 font-bold">{pendingCount} pending review</span></>}
@@ -132,14 +132,14 @@ export default function EvidencePage() {
 
       {/* Grid */}
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <span className="material-symbols-outlined animate-spin text-3xl text-outline">progress_activity</span>
+        <div className="flex justify-center py-16">
+          <span className="material-symbols-outlined animate-spin text-[#2D6A3F] text-4xl">progress_activity</span>
         </div>
       ) : clips.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-on-surface-variant">
-          <span className="material-symbols-outlined text-5xl text-outline">videocam_off</span>
-          <p className="text-sm font-bold uppercase tracking-widest">No evidence clips found</p>
-          <p className="text-xs">Clips appear here after detection and sync from monitoring sessions</p>
+        <div className="bg-white rounded-2xl border border-dashed border-[#e2e8f0] p-12 text-center">
+          <span className="material-symbols-outlined text-5xl text-gray-300 mb-3 block">videocam_off</span>
+          <h2 className="text-xl font-bold text-gray-700 mb-2">No evidence clips found</h2>
+          <p className="text-gray-500">Clips appear here after detection and sync from monitoring sessions.</p>
         </div>
       ) : (
         <>
@@ -192,6 +192,6 @@ export default function EvidencePage() {
           onClose={() => setShowFilters(false)}
         />
       )}
-    </div>
+    </section>
   )
 }

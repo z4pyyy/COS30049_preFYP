@@ -82,48 +82,46 @@ export default async function ModuleDetailPage({ params }: PageProps) {
   const track = (module.training_tracks as any)
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      <main className="max-w-4xl mx-auto px-6 py-10">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-[#64748b] mb-6">
-          <Link href="/training/modules" className="hover:text-[#2D6A3F] transition">Training Modules</Link>
-          <span className="material-symbols-outlined text-sm">chevron_right</span>
-          <span className="text-[#1B3A24] font-medium">{module.title}</span>
-        </div>
+    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-2 text-sm text-[#64748b]">
+        <Link href="/training/modules" className="hover:text-[#2D6A3F] transition">Training Modules</Link>
+        <span className="material-symbols-outlined text-sm">chevron_right</span>
+      </nav>
 
-        {/* Header */}
-        <div className="bg-white rounded-2xl border border-[#e2e8f0] p-6 mb-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex-1">
-              {track && (
-                <p className="text-xs uppercase tracking-widest text-[#8DC63F] font-bold mb-1">
-                  {track.tpa_name} · {track.track_type?.replace('_', ' ')}
-                </p>
-              )}
-              <h1 className="text-2xl font-black text-[#1B3A24]">{module.title}</h1>
-              {module.description && (
-                <p className="text-[#64748b] mt-2 leading-relaxed">{module.description}</p>
-              )}
-            </div>
-            <div className="flex flex-col items-end gap-2 text-sm text-[#64748b]">
-              {module.duration_hours && (
-                <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">schedule</span>
-                  {module.duration_hours}h estimated
-                </span>
-              )}
-              {progress?.completed && (
-                <span className="flex items-center gap-1 text-[#2D6A3F] font-semibold">
-                  <span className="material-symbols-outlined text-sm">verified</span>
-                  Completed
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Page title */}
+      <div>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">{module.title}</h1>
+        {track && (
+          <p className="text-sm text-[#64748b] mt-1">{track.tpa_name} · {track.track_type?.replace('_', ' ')}</p>
+        )}
+      </div>
 
-        {/* Content Viewer */}
-        <ModuleContentViewer
+      {/* Module metadata card */}
+      <div className="bg-white rounded-2xl border border-[#e2e8f0] p-6 shadow-sm flex flex-wrap items-start justify-between gap-4">
+        <div className="flex-1">
+          {module.description && (
+            <p className="text-[#64748b] leading-relaxed">{module.description}</p>
+          )}
+        </div>
+        <div className="flex flex-col items-end gap-2 text-sm text-[#64748b]">
+          {module.duration_hours && (
+            <span className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">schedule</span>
+              {module.duration_hours}h estimated
+            </span>
+          )}
+          {progress?.completed && (
+            <span className="flex items-center gap-1 text-[#2D6A3F] font-semibold">
+              <span className="material-symbols-outlined text-sm">verified</span>
+              Completed
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Content Viewer */}
+      <ModuleContentViewer
           moduleId={id}
           content={module.content || ''}
           assets={(assets as any[]) || []}
@@ -132,7 +130,6 @@ export default async function ModuleDetailPage({ params }: PageProps) {
           trackQuizUnlocked={moduleQuizUnlocked}
           quizPassedAt={quizPassedAt}
         />
-      </main>
-    </div>
+    </section>
   )
 }

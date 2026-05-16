@@ -14,8 +14,11 @@ export default async function MyCertificationsPage() {
     .order('created_at', { ascending: false })
 
   return (
-    <section className="p-8 space-y-6">
-      <h1 className="text-2xl font-black text-primary">My Certifications</h1>
+    <section className="p-4 sm:p-6 lg:p-8 space-y-6">
+      <div>
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">My Certifications</h1>
+        <p className="text-sm text-[#64748b] mt-1">Track your certification progress and interview stages.</p>
+      </div>
       <MyCertificationsClient
         certifications={(data ?? []) as CertificationRow[]}
         fetchError={error?.message ?? null}

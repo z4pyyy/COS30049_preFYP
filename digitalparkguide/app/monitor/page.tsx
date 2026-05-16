@@ -39,7 +39,51 @@ const HAND_CONNECTIONS: [number, number][] = [
   [5,9],[9,13],[13,17],          // palm cross
 ]
 
-const INFERENCE_EVERY = 4 // send to YOLO worker every 4th rAF frame (~15fps at 60fps)
+const INFERENCE_EVERY = 2 // send to YOLO worker every 2nd rAF frame (~30fps on laptop)
+
+// ── Bbox smoothing ───────────────────────────────────────────────────────────
+const LERP_SPEED = 0.35 // per-frame lerp factor — higher = snappier, lower = smoother
+
+interface SmoothedDetection extends Detection {
+  smoothBox: [number, number, number, number]
+}
+
+function matchDetections(
+  prev: SmoothedDetection[],
+  next: Detection[]
+): SmoothedDetection[] {
+  const used = new Set<number>()
+  const result: SmoothedDetection[] = []
+
+  for (const det of next) {
+    let bestIdx = -1
+    let bestDist = Infinity
+    for (let i = 0; i < prev.length; i++) {
+      if (used.has(i) || prev[i].classId !== det.classId) continue
+      const dx = (det.box[0] + det.box[2]) / 2 - (prev[i].smoothBox[0] + prev[i].smoothBox[2]) / 2
+      const dy = (det.box[1] + det.box[3]) / 2 - (prev[i].smoothBox[1] + prev[i].smoothBox[3]) / 2
+      const d = dx * dx + dy * dy
+      if (d < bestDist && d < 0.15) { bestDist = d; bestIdx = i }
+    }
+
+    if (bestIdx >= 0) {
+      used.add(bestIdx)
+      result.push({ ...det, smoothBox: [...prev[bestIdx].smoothBox] })
+    } else {
+      result.push({ ...det, smoothBox: [...det.box] })
+    }
+  }
+  return result
+}
+
+function lerpBoxes(dets: SmoothedDetection[], factor: number): void {
+  for (const d of dets) {
+    d.smoothBox[0] += (d.box[0] - d.smoothBox[0]) * factor
+    d.smoothBox[1] += (d.box[1] - d.smoothBox[1]) * factor
+    d.smoothBox[2] += (d.box[2] - d.smoothBox[2]) * factor
+    d.smoothBox[3] += (d.box[3] - d.smoothBox[3]) * factor
+  }
+}
 
 interface TrackOption {
   id: string
@@ -50,24 +94,25 @@ interface TrackOption {
 // ── Draw YOLO bboxes ──────────────────────────────────────────────────────────
 function drawDetections(
   ctx: CanvasRenderingContext2D,
-  dets: Detection[],
+  dets: (Detection | SmoothedDetection)[],
   cw: number,
   ch: number
 ) {
   for (const det of dets) {
+    const box = 'smoothBox' in det ? det.smoothBox : det.box
     const color = CLASS_COLORS[det.classId] ?? '#ffffff'
-    const x  = det.box[0] * cw
-    const y  = det.box[1] * ch
-    const bw = (det.box[2] - det.box[0]) * cw
-    const bh = (det.box[3] - det.box[1]) * ch
+    const x  = box[0] * cw
+    const y  = box[1] * ch
+    const bw = (box[2] - box[0]) * cw
+    const bh = (box[3] - box[1]) * ch
 
     // Expanded zone ring for flowers and wildlife
     if (det.classId === 2 || det.classId === 3) {
       const pad = 0.12
-      const ex = Math.max(0, det.box[0]-pad) * cw
-      const ey = Math.max(0, det.box[1]-pad) * ch
-      const ew = (Math.min(1, det.box[2]+pad) - Math.max(0, det.box[0]-pad)) * cw
-      const eh = (Math.min(1, det.box[3]+pad) - Math.max(0, det.box[1]-pad)) * ch
+      const ex = Math.max(0, box[0]-pad) * cw
+      const ey = Math.max(0, box[1]-pad) * ch
+      const ew = (Math.min(1, box[2]+pad) - Math.max(0, box[0]-pad)) * cw
+      const eh = (Math.min(1, box[3]+pad) - Math.max(0, box[1]-pad)) * ch
       ctx.strokeStyle = color
       ctx.lineWidth   = 1
       ctx.globalAlpha = 0.35
@@ -149,6 +194,8 @@ export default function MonitorPage() {
   const captureCooldown = useRef(false)
   const fpsFrames       = useRef(0)
   const fpsTimer        = useRef(0)
+  const smoothedRef     = useRef<SmoothedDetection[]>([])
+  const prevRawRef      = useRef<Detection[]>([])
 
   const { showToast, toastEl } = useToast()
 
@@ -213,7 +260,7 @@ export default function MonitorPage() {
     cw:  number,
     ch:  number
   ) => {
-    drawDetections(ctx, detectionsRef.current, cw, ch)
+    drawDetections(ctx, smoothedRef.current.length > 0 ? smoothedRef.current : detectionsRef.current, cw, ch)
     drawHandSkeleton(ctx, handLmsRef.current, cw, ch, poseLabelRef.current)
   }, [detectionsRef, handLmsRef, poseLabel])
 
@@ -235,8 +282,16 @@ export default function MonitorPage() {
       // Clear overlay
       ctx.clearRect(0, 0, overlay.width, overlay.height)
 
-      // Draw YOLO bboxes (last known — never waits)
-      drawDetections(ctx, detectionsRef.current, overlay.width, overlay.height)
+      // Smooth bbox interpolation — re-match when raw detections change
+      const rawDets = detectionsRef.current
+      if (rawDets !== prevRawRef.current) {
+        prevRawRef.current = rawDets
+        smoothedRef.current = matchDetections(smoothedRef.current, rawDets)
+      }
+      lerpBoxes(smoothedRef.current, LERP_SPEED)
+
+      // Draw smoothed YOLO bboxes at 60fps
+      drawDetections(ctx, smoothedRef.current, overlay.width, overlay.height)
 
       // Draw hand skeleton (last known)
       drawHandSkeleton(ctx, handLmsRef.current, overlay.width, overlay.height, poseLabelRef.current)

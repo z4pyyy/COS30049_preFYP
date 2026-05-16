@@ -5,7 +5,7 @@ import ProfileDropdown from "@/components/ProfileDropdown";
 import NotificationBell from "@/components/NotificationBell";
 import type { AppRole } from "@/types/roles";
 
-type NavKey = "home" | "training" | "announcements" | "biodiversity" | "about";
+type NavKey = "home" | "training" | "announcements"  | "about";
 
 export interface TopNavViewProps {
   active?: NavKey;
@@ -26,12 +26,11 @@ function dashboardHref(role: AppRole | null): string {
   }
 }
 
-const NAV_ITEMS: { key: NavKey; label: string; href: string }[] = [
+const NAV_ITEMS: { key: NavKey; label: string; href: string; external?: boolean }[] = [
   { key: "home",          label: "Home",          href: "/" },
   { key: "training",      label: "Training",      href: "/training" },
   { key: "announcements", label: "Announcements", href: "/announcements" },
-  { key: "biodiversity",  label: "Biodiversity",  href: "/biodiversity" },
-  { key: "about",         label: "About SFC",     href: "/about" },
+  { key: "about",         label: "About SFC",     href: "https://sfc.sarawak.gov.my/web/subpage/webpage_view/3", external: true },
 ];
 
 export default function TopNavView({ active, authed, name, email, role, context, fixed = false }: TopNavViewProps) {
@@ -73,18 +72,19 @@ export default function TopNavView({ active, authed, name, email, role, context,
 
             {/* Nav links */}
             <nav className="hidden md:flex items-center gap-1">
-              {NAV_ITEMS.map(({ key, label, href }) => {
+              {NAV_ITEMS.map(({ key, label, href, external }) => {
                 const isActive = key === active;
-                return (
-                  <Link
-                    key={key}
-                    href={href}
-                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                      isActive
-                        ? "text-primary bg-gray-100"
-                        : "text-gray-600 hover:text-primary hover:bg-gray-50"
-                    }`}
-                  >
+                const className = `px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  isActive
+                    ? "text-primary bg-gray-100"
+                    : "text-gray-600 hover:text-primary hover:bg-gray-50"
+                }`;
+                return external ? (
+                  <a key={key} href={href} target="_blank" rel="noopener noreferrer" className={className}>
+                    {label}
+                  </a>
+                ) : (
+                  <Link key={key} href={href} className={className}>
                     {label}
                   </Link>
                 );

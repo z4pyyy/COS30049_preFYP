@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 
-interface Asset {
+export interface Asset {
   id: string
   file_name: string
   file_type: 'video' | 'pdf' | 'image'

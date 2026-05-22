@@ -4,16 +4,20 @@ import { useEffect, useState } from 'react'
 import type { GeneralModuleWithStatus } from '@/types/database'
 
 interface Props {
+  requiredGmIds?: string[]
   onStatusChange?: (satisfied: boolean) => void
 }
 
-export default function GeneralModulesPrereq({ onStatusChange }: Props) {
+export default function GeneralModulesPrereq({ requiredGmIds, onStatusChange }: Props) {
   const [modules, setModules] = useState<GeneralModuleWithStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const completedCount = modules.filter(m => m.completed).length
-  const totalCount = modules.length
+  const displayModules = requiredGmIds
+    ? modules.filter(m => requiredGmIds.includes(m.id))
+    : modules
+  const completedCount = displayModules.filter(m => m.completed).length
+  const totalCount = displayModules.length
   const satisfied = totalCount === 0 || completedCount === totalCount
 
   useEffect(() => {
@@ -83,7 +87,7 @@ export default function GeneralModulesPrereq({ onStatusChange }: Props) {
       )}
 
       <div className="divide-y divide-[#e2e8f0]">
-        {modules.map(mod => (
+        {displayModules.map(mod => (
           <div key={mod.id} className="px-6 py-4 flex items-center gap-4">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
               mod.completed ? 'bg-emerald-100' : 'bg-[#f1f5f9]'

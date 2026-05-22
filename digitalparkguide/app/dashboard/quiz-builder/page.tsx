@@ -19,6 +19,11 @@ interface TrainingModule {
   tpa_name: string
 }
 
+interface GeneralModuleOption {
+  id: string
+  title: string
+}
+
 export default function QuizBuilder() {
   const supabase = createClient()
   const [title, setTitle] = useState('')
@@ -27,7 +32,9 @@ export default function QuizBuilder() {
   const [maxAttempts, setMaxAttempts] = useState(3)
   const [timeLimitMinutes, setTimeLimitMinutes] = useState<number | ''>(10)
   const [modules, setModules] = useState<TrainingModule[]>([])
+  const [generalModules, setGeneralModules] = useState<GeneralModuleOption[]>([])
   const [existingQuizModuleIds, setExistingQuizModuleIds] = useState<Set<string>>(new Set())
+  const [existingGmQuizIds, setExistingGmQuizIds] = useState<Set<string>>(new Set())
   const [questions, setQuestions] = useState<QuestionDraft[]>([
     { question_text: '', options: ['', '', '', ''], correct_option_index: 0 },
   ])
@@ -58,8 +65,16 @@ export default function QuizBuilder() {
 
       const { data: quizzes } = await supabase
         .from('quizzes')
-        .select('module_id')
+        .select('module_id, general_module_id')
       setExistingQuizModuleIds(new Set((quizzes ?? []).map(q => q.module_id).filter(Boolean)))
+      setExistingGmQuizIds(new Set((quizzes ?? []).map(q => q.general_module_id).filter(Boolean)))
+
+      const { data: gms } = await supabase
+        .from('general_modules')
+        .select('id, title')
+        .eq('is_active', true)
+        .order('order_index', { ascending: true })
+      setGeneralModules((gms ?? []) as GeneralModuleOption[])
     }
     load()
   }, [supabase])
@@ -108,17 +123,33 @@ export default function QuizBuilder() {
 
     setSaving(true)
     try {
-      const selectedMod = modules.find(m => m.id === moduleId)
+      const isGm = moduleId.startsWith('gm:')
+      const actualId = isGm ? moduleId.slice(3) : moduleId
+      const selectedMod = isGm ? null : modules.find(m => m.id === actualId)
+
+      const insertData = isGm
+        ? {
+            title: title.trim(),
+            module_id: null,
+            general_module_id: actualId,
+            track_id: null,
+            passing_score: passingScore,
+            max_attempts: maxAttempts,
+            time_limit_seconds: timeLimitSec,
+          }
+        : {
+            title: title.trim(),
+            module_id: actualId,
+            general_module_id: null,
+            track_id: selectedMod?.track_id ?? null,
+            passing_score: passingScore,
+            max_attempts: maxAttempts,
+            time_limit_seconds: timeLimitSec,
+          }
+
       const { data: quizData, error: quizErr } = await supabase
         .from('quizzes')
-        .insert({
-          title: title.trim(),
-          module_id: moduleId,
-          track_id: selectedMod?.track_id ?? null,
-          passing_score: passingScore,
-          max_attempts: maxAttempts,
-          time_limit_seconds: timeLimitSec,
-        })
+        .insert(insertData)
         .select()
         .single()
 
@@ -135,7 +166,11 @@ export default function QuizBuilder() {
       if (qErr) { showToast('Error saving questions: ' + qErr.message, false); return }
 
       showToast('Quiz published successfully!', true)
-      setExistingQuizModuleIds(prev => new Set([...prev, moduleId]))
+      if (isGm) {
+        setExistingGmQuizIds(prev => new Set([...prev, actualId]))
+      } else {
+        setExistingQuizModuleIds(prev => new Set([...prev, actualId]))
+      }
       setTitle(''); setModuleId('')
       setPassingScore(80); setMaxAttempts(3); setTimeLimitMinutes(10)
       setQuestions([{ question_text: '', options: ['', '', '', ''], correct_option_index: 0 }])
@@ -144,7 +179,9 @@ export default function QuizBuilder() {
     }
   }
 
-  const selectedModule = modules.find(m => m.id === moduleId)
+  const isGmSelected = moduleId.startsWith('gm:')
+  const selectedModule = isGmSelected ? null : modules.find(m => m.id === moduleId)
+  const selectedGm = isGmSelected ? generalModules.find(g => g.id === moduleId.slice(3)) : null
 
   // Group modules by TPA for optgroup display
   const modulesByTpa = modules.reduce<Record<string, TrainingModule[]>>((acc, m) => {
@@ -189,6 +226,17 @@ export default function QuizBuilder() {
             onChange={v => setModuleId(v)}
           >
             <option value="">— Select a module —</option>
+            {generalModules.length > 0 && (
+              <optgroup label="General Modules">
+                {generalModules
+                  .filter(gm => !existingGmQuizIds.has(gm.id))
+                  .map(gm => (
+                    <option key={`gm:${gm.id}`} value={`gm:${gm.id}`}>
+                      {gm.title}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
             {Object.entries(modulesByTpa).map(([tpa, mods]) => (
               <optgroup key={tpa} label={tpa}>
                 {mods.map(m => (
@@ -206,6 +254,11 @@ export default function QuizBuilder() {
           {selectedModule && (
             <p className="text-xs text-emerald-600 mt-1">
               ✓ {selectedModule.tpa_name} · {selectedModule.track_title}
+            </p>
+          )}
+          {selectedGm && (
+            <p className="text-xs text-emerald-600 mt-1">
+              ✓ General Module: {selectedGm.title}
             </p>
           )}
         </div>

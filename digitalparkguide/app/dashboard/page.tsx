@@ -8,7 +8,6 @@ import { ModuleEditorForm, ModuleEditorState } from "@/components/ModuleEditorFo
 import { GeneralModuleEditorForm, GeneralModuleEditorState } from "@/components/GeneralModuleEditorForm";
 import { ModuleHistoryPanel } from "@/components/ModuleHistoryPanel";
 import TrainingProgressWidget from "@/components/TrainingProgressWidget";
-import GeneralModulesPrereq from "@/components/GeneralModulesPrereq";
 import MyBadgesWidget from "@/components/MyBadgesWidget";
 import { GuideBadgesSection } from "@/components/GuideBadgesSection";
 import type { BadgeRecord } from "@/lib/badges/insert-badge";
@@ -21,9 +20,8 @@ interface TrainingTrack {
   track_type: string
   is_archived: boolean
   price_myr: number
-  // Bug 9: HoD-set per-module rate. Total = price_per_module * active module count.
-  // NULL → legacy flat price_myr fallback.
   price_per_module: number | null
+  prerequisite_gm_ids: string[]
   module_count?: number
 }
 
@@ -159,7 +157,8 @@ function DashboardContent() {
     track_type: string
     price_myr: number
     price_per_module: number | null
-  }>({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800, price_per_module: null })
+    prerequisite_gm_ids: string[]
+  }>({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800, price_per_module: null, prerequisite_gm_ids: [] })
   const [trackSaving, setTrackSaving] = useState(false)
   const [trackToast, setTrackToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -176,7 +175,7 @@ function DashboardContent() {
   const [appToast, setAppToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
   // General modules state (HoD)
-  const [generalModules, setGeneralModules] = useState<{ id: string; title: string; description: string; content: string; tpa_ids: string[]; order_index: number; duration_hours: number; is_active: boolean }[]>([])
+  const [generalModules, setGeneralModules] = useState<{ id: string; title: string; description: string; content: string; tpa_ids: string[]; order_index: number; duration_hours: number; is_active: boolean; price_myr: number }[]>([])
   const [gmLoading, setGmLoading] = useState(false)
   const [gmSaving, setGmSaving] = useState(false)
   const [gmLoaded, setGmLoaded] = useState(false)
@@ -218,11 +217,19 @@ function DashboardContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Redirect non-HOD guides to dedicated pages (must be before any early returns)
+  const shouldRedirectModules = !loading && hasMinRole(userRole, 'GUIDE') && !hasMinRole(userRole, 'HOD') && action === 'modules'
+  const shouldRedirectTracks = !loading && hasMinRole(userRole, 'GUIDE') && !hasMinRole(userRole, 'HOD') && action === 'tracks'
+  useEffect(() => {
+    if (shouldRedirectModules) router.replace('/training/modules')
+    if (shouldRedirectTracks) router.replace('/training/tracks')
+  }, [shouldRedirectModules, shouldRedirectTracks, router])
+
   const loadTrainingModulesData = async () => {
     try {
       const { data: tracks, error: tracksError } = await supabase
         .from('training_tracks')
-        .select('id, title, tpa_name, track_type, is_archived, price_myr, price_per_module')
+        .select('id, title, tpa_name, track_type, is_archived, price_myr, price_per_module, prerequisite_gm_ids')
         .order('tpa_name')
 
       if (tracksError) throw tracksError
@@ -313,6 +320,25 @@ function DashboardContent() {
     setTimeout(() => setGmToast(null), 4000)
   }
 
+  async function syncGmPrereqsToTracks(gmId: string, selectedTrackIds: string[]) {
+    for (const track of trainingTracks) {
+      const currentPrereqs: string[] = track.prerequisite_gm_ids ?? []
+      const shouldInclude = selectedTrackIds.includes(track.id)
+      const alreadyIncluded = currentPrereqs.includes(gmId)
+
+      if (shouldInclude && !alreadyIncluded) {
+        await supabase.from('training_tracks').update({
+          prerequisite_gm_ids: [...currentPrereqs, gmId],
+        }).eq('id', track.id)
+      } else if (!shouldInclude && alreadyIncluded) {
+        await supabase.from('training_tracks').update({
+          prerequisite_gm_ids: currentPrereqs.filter(id => id !== gmId),
+        }).eq('id', track.id)
+      }
+    }
+    await loadTrainingModulesData()
+  }
+
   async function handleGmCreate(data: GeneralModuleEditorState) {
     setGmSaving(true)
     try {
@@ -327,9 +353,15 @@ function DashboardContent() {
           order_index: data.order_index,
           duration_hours: data.duration_hours,
           is_active: data.is_active,
+          price_myr: data.price_myr,
         }),
       })
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      const body = await res.json()
+      if (!res.ok) throw new Error(body.error)
+      const created = body.module
+      if (data.tpa_ids.length > 0 && created?.id) {
+        await syncGmPrereqsToTracks(created.id, data.tpa_ids)
+      }
       setGmLoaded(false)
       router.push('/dashboard?action=general-modules')
     } finally {
@@ -352,9 +384,11 @@ function DashboardContent() {
           order_index: data.order_index,
           duration_hours: data.duration_hours,
           is_active: data.is_active,
+          price_myr: data.price_myr,
         }),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error) }
+      await syncGmPrereqsToTracks(data.id, data.tpa_ids)
       setGmLoaded(false)
       router.push('/dashboard?action=general-modules')
     } finally {
@@ -372,18 +406,24 @@ function DashboardContent() {
 
   function openCreateTrack() {
     setEditingTrack(null)
-    setTrackForm({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800, price_per_module: null })
+    setTrackForm({ title: '', tpa_name: '', track_type: 'GUIDE', price_myr: 7800, price_per_module: null, prerequisite_gm_ids: [] })
     setTrackModalOpen(true)
   }
 
   function openEditTrack(track: TrainingTrack) {
     setEditingTrack(track)
+    const dbPrereqs = track.prerequisite_gm_ids ?? []
+    const linkedGmIds = generalModules
+      .filter(gm => (gm.tpa_ids ?? []).includes(track.id))
+      .map(gm => gm.id)
+    const mergedPrereqs = Array.from(new Set([...dbPrereqs, ...linkedGmIds]))
     setTrackForm({
       title: track.title,
       tpa_name: track.tpa_name,
       track_type: track.track_type,
       price_myr: track.price_myr ?? 7800,
       price_per_module: track.price_per_module ?? null,
+      prerequisite_gm_ids: mergedPrereqs,
     })
     setTrackModalOpen(true)
   }
@@ -402,6 +442,7 @@ function DashboardContent() {
         track_type: trackForm.track_type,
         price_myr: trackForm.price_myr,
         price_per_module: trackForm.price_per_module,
+        prerequisite_gm_ids: trackForm.prerequisite_gm_ids,
       }
       if (editingTrack) {
         const { error } = await supabase
@@ -415,7 +456,7 @@ function DashboardContent() {
         const { data: newTrack, error } = await supabase
           .from('training_tracks')
           .insert(payload)
-          .select('id, title, tpa_name, track_type, is_archived, price_myr, price_per_module')
+          .select('id, title, tpa_name, track_type, is_archived, price_myr, price_per_module, prerequisite_gm_ids')
           .single()
         if (error) throw error
         setTrainingTracks(prev => [...prev, { ...(newTrack as unknown as TrainingTrack), module_count: 0 }])
@@ -652,7 +693,7 @@ function DashboardContent() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface">
-        <span className="material-symbols-outlined animate-spin text-primary text-4xl">progress_activity</span>
+        <span className="material-symbols-outlined animate-spin text-primary text-4xl" suppressHydrationWarning>progress_activity</span>
       </div>
     );
   }
@@ -718,15 +759,6 @@ function DashboardContent() {
     )
   }
 
-  // Redirect non-HOD guides to their dedicated pages
-  if (hasMinRole(userRole, 'GUIDE') && !hasMinRole(userRole, 'HOD') && action === 'modules') {
-    router.replace('/training/modules')
-    return null
-  }
-  if (hasMinRole(userRole, 'GUIDE') && !hasMinRole(userRole, 'HOD') && action === 'tracks') {
-    router.replace('/training/tracks')
-    return null
-  }
 
   // General Modules — Edit View
   if (hasMinRole(userRole, 'HOD') && action === 'gm-edit' && moduleId) {
@@ -827,6 +859,7 @@ function DashboardContent() {
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Module Title</th>
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Description</th>
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">TPAs</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Price</th>
                     <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-[#1B3A24]">Status</th>
                     <th className="px-4 sm:px-6 py-3 text-right text-xs font-semibold text-[#1B3A24]">Actions</th>
                   </tr>
@@ -854,6 +887,9 @@ function DashboardContent() {
                             })}
                           </div>
                         )}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 text-sm text-[#1B3A24]">
+                        {m.price_myr > 0 ? `RM ${m.price_myr}` : 'Free'}
                       </td>
                       <td className="px-4 sm:px-6 py-4">
                         <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${m.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -1041,6 +1077,7 @@ function DashboardContent() {
 
   // Park Badges CRUD View (HoD)
   if (hasMinRole(userRole, 'HOD') && action === 'tracks') {
+    if (!gmLoaded && !gmLoading) loadGeneralModules()
     return (
       <div className="min-h-screen bg-[#f8fafc] p-6">
         <div className="max-w-6xl mx-auto">
@@ -1123,6 +1160,36 @@ function DashboardContent() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">Badge Type</label>
                     <div className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-[#f8fafc] text-gray-500">Guide Track</div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5">
+                      Required General Modules
+                    </label>
+                    <div className="border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
+                      {generalModules.length === 0 ? (
+                        <div className="px-4 py-3 text-sm text-gray-400">No general modules created yet</div>
+                      ) : generalModules.map(gm => (
+                        <label key={gm.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={trackForm.prerequisite_gm_ids.includes(gm.id)}
+                            onChange={e => {
+                              setTrackForm(f => ({
+                                ...f,
+                                prerequisite_gm_ids: e.target.checked
+                                  ? [...f.prerequisite_gm_ids, gm.id]
+                                  : f.prerequisite_gm_ids.filter(id => id !== gm.id),
+                              }))
+                            }}
+                            className="w-4 h-4 rounded border-gray-300 text-[#2D6A3F] focus:ring-[#2D6A3F]"
+                          />
+                          <span className="text-sm font-medium text-[#1B3A24]">{gm.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Guides must complete these modules before enrolling in this track.
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-3 justify-end mt-8">
@@ -1538,8 +1605,6 @@ function DashboardContent() {
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">{heading}</h1>
           <p className="text-sm text-[#64748b] mt-1">{subheading}</p>
         </div>
-
-        {widgetMode === 'guide' && <GeneralModulesPrereq />}
 
         <TrainingProgressWidget mode={widgetMode} />
 

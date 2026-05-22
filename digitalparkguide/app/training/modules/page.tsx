@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { hasMinRole, type AppRole } from '@/types/roles'
+import MarkGmCompleteButton from '@/components/MarkGmCompleteButton'
 
 export const metadata: Metadata = {
   title: 'Guide Training Modules',
@@ -30,6 +31,16 @@ interface ProgressRecord {
   module_id: string
   completed: boolean
   assets_consumed: string[]
+}
+
+interface EnrolledGM {
+  id: string
+  title: string
+  description: string
+  duration_hours: number
+  completed: boolean
+  completed_at: string | null
+  quiz_id: string | null
 }
 
 export default async function GuideTrainingModulesPage({
@@ -61,8 +72,54 @@ export default async function GuideTrainingModulesPage({
 
   const enrolledTrackIds = new Set((enrollments || []).map(e => e.track_id))
 
+  // Fetch enrolled GMs (paid)
+  const { data: gmEnrollmentsRaw } = await supabase
+    .from('general_module_enrollments')
+    .select('general_module_id')
+    .eq('user_id', user.id)
+    .eq('payment_status', 'paid')
+
+  const enrolledGmIds = (gmEnrollmentsRaw || []).map(e => e.general_module_id)
+
+  let enrolledGms: EnrolledGM[] = []
+  if (enrolledGmIds.length > 0) {
+    const { data: gmsRaw } = await supabase
+      .from('general_modules')
+      .select('id, title, description, duration_hours')
+      .in('id', enrolledGmIds)
+      .eq('is_active', true)
+      .order('order_index')
+
+    const { data: gmCompletions } = await supabase
+      .from('general_module_completions')
+      .select('general_module_id, completed_at')
+      .eq('user_id', user.id)
+
+    const completionMap = new Map(
+      (gmCompletions || []).map(c => [c.general_module_id, c.completed_at])
+    )
+
+    const { data: gmQuizzes } = await supabase
+      .from('quizzes')
+      .select('id, general_module_id')
+      .not('general_module_id', 'is', null)
+
+    const quizByGm = new Map(
+      (gmQuizzes || []).filter(q => q.general_module_id).map(q => [q.general_module_id!, q.id])
+    )
+
+    enrolledGms = (gmsRaw || []).map(gm => ({
+      ...gm,
+      completed: completionMap.has(gm.id),
+      completed_at: completionMap.get(gm.id) ?? null,
+      quiz_id: quizByGm.get(gm.id) ?? null,
+    }))
+  }
+
+  const hasGms = enrolledGms.length > 0
+
   // No enrollments → send to tracks page to enroll first
-  if (enrolledTrackIds.size === 0) {
+  if (enrolledTrackIds.size === 0 && !hasGms) {
     return (
       <section className="p-4 sm:p-6 lg:p-8 flex flex-1 items-center justify-center">
         <div className="max-w-md w-full bg-white rounded-3xl border border-[#e2e8f0] p-10 shadow-sm text-center">
@@ -84,41 +141,50 @@ export default async function GuideTrainingModulesPage({
   }
 
   // Fetch full track info for enrolled tracks (drives per-track section rendering)
-  const { data: enrolledTracksRaw } = await supabase
-    .from('training_tracks')
-    .select('id, title, tpa_name, track_type')
-    .in('id', [...enrolledTrackIds])
-    .eq('is_archived', false)
-    .order('tpa_name')
-    .order('title')
+  let enrolledTracks: TrainingTrackLite[] = []
+  let modules: TrainingModule[] = []
+  let progressMap = new Map<string, ProgressRecord>()
+  let modulesWithQuiz = new Set<string>()
+  let modulesError: unknown = null
+  const availableTpas: string[] = []
 
-  const enrolledTracks: TrainingTrackLite[] = (enrolledTracksRaw || []) as TrainingTrackLite[]
-  const availableTpas = Array.from(new Set(enrolledTracks.map(t => t.tpa_name).filter(Boolean)))
+  if (enrolledTrackIds.size > 0) {
+    const { data: enrolledTracksRaw } = await supabase
+      .from('training_tracks')
+      .select('id, title, tpa_name, track_type')
+      .in('id', [...enrolledTrackIds])
+      .eq('is_archived', false)
+      .order('tpa_name')
+      .order('title')
 
-  // Fetch active, non-archived modules — only for enrolled tracks
-  const { data: rawModules, error: modulesError } = await supabase
-    .from('training_modules')
-    .select('id, title, description, order_index, duration_hours, track_id, training_tracks(id, title, tpa_name, track_type)')
-    .eq('is_active', true)
-    .eq('is_archived', false)
-    .in('track_id', [...enrolledTrackIds])
-    .order('order_index', { ascending: true })
+    enrolledTracks = (enrolledTracksRaw || []) as TrainingTrackLite[]
+    availableTpas.push(...new Set(enrolledTracks.map(t => t.tpa_name).filter(Boolean)))
 
-  // Fetch user's progress for all modules
-  const { data: progressRecords } = await supabase
-    .from('guide_module_progress')
-    .select('module_id, completed, assets_consumed')
-    .eq('guide_id', user.id)
+    const { data: rawModules, error: mErr } = await supabase
+      .from('training_modules')
+      .select('id, title, description, order_index, duration_hours, track_id, training_tracks(id, title, tpa_name, track_type)')
+      .eq('is_active', true)
+      .eq('is_archived', false)
+      .in('track_id', [...enrolledTrackIds])
+      .order('order_index', { ascending: true })
 
-  const progressMap = new Map<string, ProgressRecord>(
-    (progressRecords || []).map(p => [p.module_id, p])
-  )
+    modulesError = mErr
+    modules = (rawModules as unknown as TrainingModule[]) || []
 
-  // Fetch which modules have quizzes (for indicator badge)
-  const { data: quizModules } = await supabase
-    .from('quizzes')
-    .select('module_id')
-  const modulesWithQuiz = new Set((quizModules ?? []).map(q => q.module_id).filter(Boolean))
+    const { data: progressRecords } = await supabase
+      .from('guide_module_progress')
+      .select('module_id, completed, assets_consumed')
+      .eq('guide_id', user.id)
+
+    progressMap = new Map<string, ProgressRecord>(
+      (progressRecords || []).map(p => [p.module_id, p])
+    )
+
+    const { data: quizModules } = await supabase
+      .from('quizzes')
+      .select('module_id')
+    modulesWithQuiz = new Set((quizModules ?? []).map(q => q.module_id).filter(Boolean))
+  }
 
   if (modulesError) {
     return (
@@ -132,8 +198,6 @@ export default async function GuideTrainingModulesPage({
       </section>
     )
   }
-
-  const modules = (rawModules as unknown as TrainingModule[]) || []
 
   // Group modules by track_id, seeding empty arrays for every enrolled track so
   // tracks with zero published modules still render as a section.
@@ -235,7 +299,7 @@ export default async function GuideTrainingModulesPage({
         )}
 
         {/* TPA Filter */}
-        <form action="/training/modules" className="mb-8">
+        {enrolledTracks.length > 0 && <form action="/training/modules" className="mb-8">
           <label className="block text-sm font-semibold text-[#1B3A24] mb-2">Filter by TPA</label>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative w-full">
@@ -260,15 +324,86 @@ export default async function GuideTrainingModulesPage({
               Apply Filter
             </button>
           </div>
-        </form>
+        </form>}
 
-        {visibleTracks.length === 0 ? (
+        {/* ── General Module Training ─────────────────────── */}
+        {hasGms && (
+          <section className="mb-10">
+            <div className="mb-4 rounded-3xl bg-white border border-[#e2e8f0] p-6">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[#2D6A3F] text-3xl">menu_book</span>
+                <div>
+                  <p className="text-sm uppercase tracking-[0.2em] text-[#8DC63F]">Prerequisites</p>
+                  <h2 className="text-2xl font-bold text-[#1B3A24]">General Modules</h2>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {enrolledGms.map(gm => {
+                const gmStatus = gm.completed ? 'completed' : 'in_progress'
+                const badge = statusBadge[gmStatus]
+                return (
+                  <article
+                    key={gm.id}
+                    className="rounded-3xl border border-[#e2e8f0] bg-white p-6 shadow-sm hover:shadow-md hover:border-[#8DC63F] transition-all"
+                  >
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${badge.cls}`}>
+                        <span className="material-symbols-outlined text-xs">{badge.icon}</span>
+                        {badge.label}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-semibold text-[#1B3A24] mb-2">{gm.title}</h3>
+                    {gm.description && (
+                      <p className="text-[#475569] leading-relaxed mb-4 line-clamp-2 text-sm">{gm.description}</p>
+                    )}
+                    <div className="flex items-center gap-3 text-xs text-[#64748b] mb-4">
+                      {gm.duration_hours > 0 && (
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-xs">schedule</span>
+                          {gm.duration_hours} hour{gm.duration_hours === 1 ? '' : 's'}
+                        </span>
+                      )}
+                      {gm.quiz_id && (
+                        <span className="flex items-center gap-1 text-[#2D6A3F] font-semibold">
+                          <span className="material-symbols-outlined text-xs">quiz</span>
+                          Quiz
+                        </span>
+                      )}
+                    </div>
+                    {gm.completed ? (
+                      <p className="text-sm text-emerald-600 font-medium flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm">verified</span>
+                        Completed {gm.completed_at ? new Date(gm.completed_at).toLocaleDateString('en-MY', {
+                          day: 'numeric', month: 'short', year: 'numeric',
+                        }) : ''}
+                      </p>
+                    ) : gm.quiz_id ? (
+                      <Link
+                        href={`/quiz?quiz_id=${gm.quiz_id}`}
+                        className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition"
+                      >
+                        <span className="material-symbols-outlined text-sm">quiz</span>
+                        Take Quiz
+                      </Link>
+                    ) : (
+                      <MarkGmCompleteButton gmId={gm.id} />
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ── TPA Track Training ──────────────────────────── */}
+        {visibleTracks.length === 0 && enrolledTracks.length > 0 ? (
           <div className="rounded-3xl bg-white p-12 shadow-lg text-center">
             <span className="material-symbols-outlined text-5xl text-[#cbd5e1] mb-4 block">school</span>
             <h2 className="text-2xl font-bold text-[#1B3A24] mb-3">No tracks found</h2>
             <p className="text-[#64748b]">No enrolled tracks for the selected TPA.</p>
           </div>
-        ) : (
+        ) : visibleTracks.length > 0 ? (
           visibleTracks.map(track => {
             const trackModules = modulesByTrack[track.id] || []
             const { completed, total, pct } = progressForTrack(track.id)
@@ -372,7 +507,7 @@ export default async function GuideTrainingModulesPage({
               </section>
             )
           })
-        )}
+        ) : null}
     </section>
   )
 }

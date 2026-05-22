@@ -17,6 +17,7 @@ interface QuizMeta {
   passing_score: number
   max_attempts: number
   module_id: string | null
+  general_module_id: string | null
   time_limit_seconds: number | null
 }
 
@@ -197,9 +198,13 @@ function ParkQuizInterface() {
           </p>
 
           {result.passed ? (
-            <button onClick={() => router.push(`/training/modules/${quiz?.module_id}`)}
+            <button onClick={() => router.push(
+              quiz?.general_module_id
+                ? '/training/tracks?tab=general-modules'
+                : `/training/modules/${quiz?.module_id}`
+            )}
               className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold transition-all uppercase tracking-widest">
-              Return to Module
+              {quiz?.general_module_id ? 'Return to General Modules' : 'Return to Module'}
             </button>
           ) : attemptsLeft > 0 ? (
             <button onClick={() => window.location.reload()}
@@ -209,9 +214,13 @@ function ParkQuizInterface() {
           ) : (
             <div>
               <p className="text-xs text-red-400 mb-4">No attempts remaining. Contact your HoD.</p>
-              <button onClick={() => router.push(`/training/modules/${quiz?.module_id}`)}
+              <button onClick={() => router.push(
+                quiz?.general_module_id
+                  ? '/training/tracks?tab=general-modules'
+                  : `/training/modules/${quiz?.module_id}`
+              )}
                 className="w-full py-4 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold transition-all">
-                Return to Module
+                {quiz?.general_module_id ? 'Return to General Modules' : 'Return to Module'}
               </button>
             </div>
           )}

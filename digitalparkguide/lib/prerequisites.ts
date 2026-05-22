@@ -1,5 +1,64 @@
 import { createClient } from '@/lib/supabase/server'
-import type { PrerequisiteStatus } from '@/types/database'
+import type { PrerequisiteStatus, TrackPrerequisiteStatus } from '@/types/database'
+
+export async function checkTrackPrerequisites(
+  userId: string,
+  trackId: string
+): Promise<TrackPrerequisiteStatus> {
+  const supabase = await createClient()
+
+  const { data: track, error: trackError } = await supabase
+    .from('training_tracks')
+    .select('prerequisite_gm_ids')
+    .eq('id', trackId)
+    .single()
+
+  if (trackError) throw new Error(trackError.message)
+
+  const requiredIds: string[] = track?.prerequisite_gm_ids ?? []
+  if (requiredIds.length === 0) {
+    return { satisfied: true, prerequisites: [] }
+  }
+
+  const { data: modules, error: modError } = await supabase
+    .from('general_modules')
+    .select('*')
+    .in('id', requiredIds)
+    .order('order_index', { ascending: true })
+
+  if (modError) throw new Error(modError.message)
+
+  const { data: completions } = await supabase
+    .from('general_module_completions')
+    .select('module_id, completed_at')
+    .eq('user_id', userId)
+
+  const completionMap = new Map(
+    (completions ?? []).map(c => [c.module_id, c.completed_at])
+  )
+
+  const { data: enrollments } = await supabase
+    .from('general_module_enrollments')
+    .select('module_id, payment_status')
+    .eq('guide_id', userId)
+
+  const enrollmentMap = new Map(
+    (enrollments ?? []).map(e => [e.module_id, e.payment_status])
+  )
+
+  const prerequisites = (modules ?? []).map(mod => ({
+    module: mod,
+    completed: completionMap.has(mod.id),
+    completed_at: completionMap.get(mod.id) ?? null,
+    enrolled: enrollmentMap.has(mod.id),
+    paid: enrollmentMap.get(mod.id) === 'paid',
+  }))
+
+  return {
+    satisfied: prerequisites.every(p => p.completed),
+    prerequisites,
+  }
+}
 
 export async function checkGeneralModulePrerequisites(
   userId: string

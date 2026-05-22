@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { checkGeneralModulePrerequisites } from '@/lib/prerequisites'
+import { checkTrackPrerequisites } from '@/lib/prerequisites'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -14,13 +14,14 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const prereq = await checkGeneralModulePrerequisites(user.id)
+  const prereq = await checkTrackPrerequisites(user.id, trackId)
   if (!prereq.satisfied) {
+    const incomplete = prereq.prerequisites.filter(p => !p.completed)
     return NextResponse.json(
       {
         error: 'Prerequisites not met',
-        message: `Complete all general training modules before enrolling. ${prereq.completed_count}/${prereq.total_count} completed.`,
-        incomplete_modules: prereq.incomplete_modules.map(m => ({ id: m.id, title: m.title })),
+        message: `Complete required general modules before enrolling.`,
+        incomplete_modules: incomplete.map(p => ({ id: p.module.id, title: p.module.title })),
       },
       { status: 403 }
     )

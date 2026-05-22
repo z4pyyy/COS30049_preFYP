@@ -82,7 +82,7 @@ export function GuardianPortalSidebar({ fullName = '', initials = 'G' }: Props) 
       },
     ] : []),
 
-    { href: '/dashboard/tracks', icon: 'trophy',  label: 'Tracks',      active: pathname.startsWith('/dashboard/tracks') },
+    { href: isHod ? '/dashboard?action=tracks' : '/training/tracks', icon: 'trophy', label: 'Tracks', active: isHod ? action === 'tracks' : pathname.startsWith('/training/tracks') || pathname.startsWith('/dashboard/tracks') },
     { href: '/monitor',            icon: 'videocam',           label: 'AI Monitor',       active: pathname.startsWith('/monitor') },
     { href: '/dashboard/evidence', icon: 'shield',             label: 'Evidence Review',  active: pathname.startsWith('/dashboard/evidence') },
 

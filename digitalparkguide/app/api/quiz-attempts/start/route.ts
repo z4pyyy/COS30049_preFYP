@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
 
   const { data: quiz, error: qErr } = await supabase
     .from('quizzes')
-    .select('id, title, module_id, passing_score, max_attempts, time_limit_seconds')
+    .select('id, title, module_id, general_module_id, passing_score, max_attempts, time_limit_seconds')
     .eq('id', quiz_id)
     .single()
 

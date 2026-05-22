@@ -13,6 +13,7 @@ export interface GeneralModuleEditorState {
   order_index: number
   duration_hours: number
   is_active: boolean
+  price_myr: number
 }
 
 interface GeneralModuleEditorFormProps {
@@ -38,6 +39,7 @@ export function GeneralModuleEditorForm({
     order_index: 0,
     duration_hours: 1,
     is_active: true,
+    price_myr: 0,
   })
 
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +64,7 @@ export function GeneralModuleEditorForm({
         order_index: module.order_index,
         duration_hours: module.duration_hours || 1,
         is_active: module.is_active,
+        price_myr: module.price_myr ?? 0,
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load module')
@@ -234,7 +237,7 @@ export function GeneralModuleEditorForm({
       </div>
 
       {/* Module Settings */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
           <label className="block text-sm font-semibold text-[#1B3A24] mb-2">
             Estimated Duration (hours)
@@ -264,6 +267,27 @@ export function GeneralModuleEditorForm({
           />
           <p className="text-xs text-[#64748b] mt-1">
             Display order in the list (0 = first)
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-semibold text-[#1B3A24] mb-2">
+            Price (RM)
+          </label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-[#94a3b8] font-medium">RM</span>
+            <input
+              type="number"
+              value={formData.price_myr}
+              onChange={(e) => setFormData(prev => ({ ...prev, price_myr: parseFloat(e.target.value) || 0 }))}
+              min="0"
+              step="1"
+              disabled={isLoading}
+              className="w-full pl-12 pr-4 py-2.5 border border-[#cbd5e1] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2D6A3F] focus:border-transparent bg-white text-[#1B3A24]"
+            />
+          </div>
+          <p className="text-xs text-[#64748b] mt-1">
+            Set to 0 for free modules
           </p>
         </div>
       </div>

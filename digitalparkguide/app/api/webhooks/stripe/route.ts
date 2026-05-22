@@ -21,23 +21,139 @@ export async function POST(req: NextRequest) {
     const session = event.data.object as Stripe.Checkout.Session
 
     const guide_id = session.metadata?.guide_id
-    const track_id = session.metadata?.track_id
+    const checkoutType = session.metadata?.type ?? 'track'
 
-    if (!guide_id || !track_id) {
-      console.warn(
-        `[stripe webhook] checkout.session.completed ignored — session ${session.id} is missing guide_id or track_id in metadata. ` +
-        'This session was not created by the checkout route and requires no action.'
-      )
+    if (!guide_id) {
+      console.warn(`[stripe webhook] session ${session.id} missing guide_id`)
       return NextResponse.json({ received: true })
     }
 
     const supabase = createAdminClient()
 
+    // ── Handle general_module enrollment ──────────────────────
+    if (checkoutType === 'general_module') {
+      const module_id = session.metadata?.module_id
+      if (!module_id) {
+        console.warn(`[stripe webhook] general_module session ${session.id} missing module_id`)
+        return NextResponse.json({ received: true })
+      }
+
+      await supabase.from('general_module_enrollments').upsert(
+        {
+          guide_id,
+          module_id,
+          status: 'active',
+          payment_status: 'paid',
+          stripe_session_id: session.id,
+          paid_at: new Date().toISOString(),
+        },
+        { onConflict: 'guide_id,module_id' }
+      )
+
+      return NextResponse.json({ received: true })
+    }
+
+    // ── Handle bundle (GMs + track) ──────────────────────────
+    if (checkoutType === 'bundle') {
+      const track_id = session.metadata?.track_id
+      const moduleIdsStr = session.metadata?.module_ids ?? ''
+      const moduleIds = moduleIdsStr.split(',').filter(Boolean)
+
+      for (const module_id of moduleIds) {
+        await supabase.from('general_module_enrollments').upsert(
+          {
+            guide_id,
+            module_id,
+            status: 'active',
+            payment_status: 'paid',
+            stripe_session_id: session.id,
+            paid_at: new Date().toISOString(),
+          },
+          { onConflict: 'guide_id,module_id' }
+        )
+      }
+
+      if (track_id) {
+        const paymentIntent = typeof session.payment_intent === 'string' ? session.payment_intent : null
+        const amountCents = session.amount_total ?? 0
+        const currency = session.currency?.toUpperCase() ?? 'MYR'
+
+        await supabase.from('guide_track_enrollments').upsert(
+          {
+            guide_id,
+            track_id,
+            status: 'active',
+            payment_status: 'paid',
+            stripe_session_id: session.id,
+            stripe_payment_intent: paymentIntent,
+            amount_cents: amountCents,
+            currency,
+            paid_at: new Date().toISOString(),
+          },
+          { onConflict: 'guide_id,track_id' }
+        )
+
+        const { data: existingCert } = await supabase
+          .from('guide_track_certifications')
+          .select('id, stage')
+          .eq('guide_id', guide_id)
+          .eq('track_id', track_id)
+          .neq('stage', 'REJECTED')
+          .maybeSingle()
+
+        let certId: string | null = existingCert?.id ?? null
+
+        if (!certId) {
+          const { data: track } = await supabase
+            .from('training_tracks')
+            .select('tpa_name')
+            .eq('id', track_id)
+            .single()
+
+          if (track) {
+            const { data: newCert } = await supabase
+              .from('guide_track_certifications')
+              .insert({ guide_id, track_id, tpa_name: track.tpa_name, stage: 'AWAITING_PAYMENT' })
+              .select('id')
+              .single()
+            certId = newCert?.id ?? null
+          }
+        }
+
+        if (certId) {
+          await supabase
+            .from('guide_track_certifications')
+            .update({ stage: 'PAID', paid_at: new Date().toISOString() })
+            .eq('id', certId)
+            .eq('stage', 'AWAITING_PAYMENT')
+
+          await supabase
+            .from('guide_track_certifications')
+            .update({ stripe_session_id: session.id })
+            .eq('id', certId)
+        }
+
+        await supabase.rpc('presatisfy_track_modules', {
+          p_guide_id: guide_id,
+          p_track_id: track_id,
+        })
+      }
+
+      return NextResponse.json({ received: true })
+    }
+
+    // ── Handle track (existing/legacy) ───────────────────────
+    const track_id = session.metadata?.track_id
+
+    if (!track_id) {
+      console.warn(`[stripe webhook] session ${session.id} missing track_id`)
+      return NextResponse.json({ received: true })
+    }
+
     const paymentIntent = typeof session.payment_intent === 'string' ? session.payment_intent : null
     const amountCents = session.amount_total ?? 0
     const currency = session.currency?.toUpperCase() ?? 'MYR'
 
-    // Upsert enrollment with full Stripe payment details
     const { error } = await supabase
       .from('guide_track_enrollments')
       .upsert(
@@ -60,8 +176,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Find or create the guide_track_certifications row for this guide+track.
-    // Uses service-role client so it bypasses RLS on both the select and insert.
     const { data: existingCert } = await supabase
       .from('guide_track_certifications')
       .select('id, stage')
@@ -82,7 +196,7 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (trackError || !track) {
-        console.error('[stripe webhook] training_tracks lookup failed for track', track_id, trackError?.message)
+        console.error('[stripe webhook] training_tracks lookup failed:', trackError?.message)
         return NextResponse.json({ error: 'Track not found' }, { status: 500 })
       }
 
@@ -93,29 +207,22 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (certInsertError || !newCert) {
-        console.error('[stripe webhook] guide_track_certifications insert failed:', certInsertError?.message)
+        console.error('[stripe webhook] cert insert failed:', certInsertError?.message)
         return NextResponse.json({ error: certInsertError?.message ?? 'Cert insert failed' }, { status: 500 })
       }
 
       certId = newCert.id
     }
 
-    // Phase 1: advance AWAITING_PAYMENT → PAID (fires fn_advance_paid_cert trigger)
     await supabase
       .from('guide_track_certifications')
-      .update({
-        stage: 'PAID',
-        paid_at: new Date().toISOString(),
-      })
+      .update({ stage: 'PAID', paid_at: new Date().toISOString() })
       .eq('id', certId)
       .eq('stage', 'AWAITING_PAYMENT')
 
-    // Phase 2: stamp stripe_session_id unconditionally
     await supabase
       .from('guide_track_certifications')
-      .update({
-        stripe_session_id: session.id,
-      })
+      .update({ stripe_session_id: session.id })
       .eq('id', certId)
   }
 

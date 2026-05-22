@@ -52,7 +52,7 @@ export default function BundleEnrollButton({
           {paidPending.map(g => (
             <div key={g.id} className="flex items-center gap-1">
               <span className="material-symbols-outlined text-xs text-amber-500">pending</span>
-              {g.title} — Quiz pending
+              {g.title} — Not Completed
             </div>
           ))}
           {notEnrolled.map(g => (

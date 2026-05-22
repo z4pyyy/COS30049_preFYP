@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
     status: 'pending_review',
     sync_status: 'synced',
     local_queue_id: metadata.localQueueId,
+    session_id: metadata.sessionId || null,
   })
 
   if (insertErr) {

@@ -14,27 +14,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'clipPath and thumbPath required' }, { status: 400 })
   }
 
-  // Verify user owns the path
   if (!clipPath.startsWith(user.id + '/')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const admin = createAdminClient()
 
-  const { data: clipSigned, error: clipErr } = await admin.storage
-    .from('evidence-clips')
-    .createSignedUrl(clipPath, TEN_YEARS_SECONDS)
+  const [clipSigned, thumbSigned] = await Promise.all([
+    admin.storage.from('evidence-clips').createSignedUrl(clipPath, TEN_YEARS_SECONDS),
+    admin.storage.from('evidence-clips').createSignedUrl(thumbPath, TEN_YEARS_SECONDS),
+  ])
 
-  if (clipErr) return NextResponse.json({ error: clipErr.message }, { status: 500 })
-
-  const { data: thumbSigned, error: thumbErr } = await admin.storage
-    .from('evidence-clips')
-    .createSignedUrl(thumbPath, TEN_YEARS_SECONDS)
-
-  if (thumbErr) return NextResponse.json({ error: thumbErr.message }, { status: 500 })
+  if (clipSigned.error) return NextResponse.json({ error: clipSigned.error.message }, { status: 500 })
+  if (thumbSigned.error) return NextResponse.json({ error: thumbSigned.error.message }, { status: 500 })
 
   return NextResponse.json({
-    clipUrl: clipSigned.signedUrl,
-    thumbnailUrl: thumbSigned.signedUrl,
+    clipUrl: clipSigned.data!.signedUrl,
+    thumbnailUrl: thumbSigned.data!.signedUrl,
   })
 }

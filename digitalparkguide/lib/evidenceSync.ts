@@ -60,7 +60,6 @@ async function syncOneClip(
   const thumbExt = clip.thumbnailBlob.type === 'image/webp' ? '.webp' : '.jpg'
   const thumbPath = `${clip.guideId}/${clip.localQueueId}${thumbExt}`
 
-  // Strip codec params (e.g. 'video/webm; codecs="vp9"' → 'video/webm') — Supabase rejects extended MIME
   const baseContentType = (clip.mimeType || 'video/webm').split(';')[0].trim()
 
   const { error: clipErr } = await supabase.storage
@@ -81,7 +80,6 @@ async function syncOneClip(
     throw thumbErr
   }
 
-  // Signed URLs via server API (service role key stays server-side)
   const signedRes = await fetch('/api/evidence/sign-urls', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -112,6 +110,7 @@ async function syncOneClip(
     status: 'pending_review',
     sync_status: 'synced',
     local_queue_id: clip.localQueueId,
+    session_id: clip.sessionId || null,
   })
 
   if (insertErr) {

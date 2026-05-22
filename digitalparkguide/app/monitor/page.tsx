@@ -1,10 +1,16 @@
 'use client'
 
-// app/monitor/page.tsx — Phase 2
+// app/monitor/page.tsx — Phase 2 (COCO model)
 // rAF loop now runs both:
 //   1. YOLO worker frame dispatch (every Nth frame)
 //   2. MediaPipe hand landmarker (every ~80ms on main thread)
 // Hand skeleton drawn on overlay canvas alongside YOLO bboxes.
+//
+// CLASS IDs (from COCO remap — must match yolo.worker.js + useDetection.ts):
+//   0 = person
+//   1 = wildlife
+//   2 = plant
+// Hands: MediaPipe only (not in COCO model)
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useDetection, type Detection } from '@/lib/useDetection'
@@ -16,17 +22,33 @@ import { useToast } from '@/components/ui/Toast'
 import { useSensorNode } from '@/lib/useSensorNode'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+// SFC class IDs — must match yolo.worker.js COCO_TO_SFC mapping
+const SFC_PERSON   = 0
+const SFC_WILDLIFE = 1
+const SFC_PLANT    = 2
+
 const CLASS_COLORS: Record<number, string> = {
-  0: '#3b82f6',
-  1: '#f97316',
-  2: '#22c55e',
-  3: '#ef4444',
+  // [SFC_PERSON]:   '#f97316',  // orange
+  [SFC_WILDLIFE]: '#ef4444',  // red
+  [SFC_PLANT]:    '#22c55e',  // green
 }
 
-
-
 const CLASS_LABELS: Record<number, string> = {
-  0: 'hand', 1: 'person', 2: 'plant', 3: 'wildlife',
+  // [SFC_PERSON]:   'person',
+  [SFC_WILDLIFE]: 'wildlife',
+  [SFC_PLANT]:    'plant',
+}
+
+const CLASS_ICONS: Record<number, string> = {
+  // [SFC_PERSON]:   'person',
+  [SFC_WILDLIFE]: 'pets',
+  [SFC_PLANT]:    'local_florist',
+}
+
+const CLASS_PILL_STYLES: Record<number, string> = {
+  // [SFC_PERSON]:   'bg-surface-container-high text-on-surface-variant',
+  [SFC_WILDLIFE]: 'bg-tertiary-container text-on-tertiary-container',
+  [SFC_PLANT]:    'bg-green-100 text-green-800',
 }
 
 // Hand skeleton connections (MediaPipe 21-point topology)
@@ -39,14 +61,17 @@ const HAND_CONNECTIONS: [number, number][] = [
   [5,9],[9,13],[13,17],          // palm cross
 ]
 
-const INFERENCE_EVERY = 2 // send to YOLO worker every 2nd rAF frame (~30fps on laptop)
+const INFERENCE_EVERY = 2
 
 // ── Bbox smoothing ───────────────────────────────────────────────────────────
-const LERP_SPEED = 0.35 // per-frame lerp factor — higher = snappier, lower = smoother
+const LERP_SPEED = 0.35
 
 interface SmoothedDetection extends Detection {
   smoothBox: [number, number, number, number]
+  missedFrames?: number
 }
+
+const PERSIST_FRAMES = 8
 
 function matchDetections(
   prev: SmoothedDetection[],
@@ -68,11 +93,20 @@ function matchDetections(
 
     if (bestIdx >= 0) {
       used.add(bestIdx)
-      result.push({ ...det, smoothBox: [...prev[bestIdx].smoothBox] })
+      result.push({ ...det, smoothBox: [...prev[bestIdx].smoothBox], missedFrames: 0 })
     } else {
-      result.push({ ...det, smoothBox: [...det.box] })
+      result.push({ ...det, smoothBox: [...det.box], missedFrames: 0 })
     }
   }
+
+  for (let i = 0; i < prev.length; i++) {
+    if (used.has(i)) continue
+    const missed = (prev[i].missedFrames ?? 0) + 1
+    if (missed <= PERSIST_FRAMES) {
+      result.push({ ...prev[i], missedFrames: missed })
+    }
+  }
+
   return result
 }
 
@@ -99,6 +133,7 @@ function drawDetections(
   ch: number
 ) {
   for (const det of dets) {
+    if (det.classId === SFC_PERSON) continue
     const box = 'smoothBox' in det ? det.smoothBox : det.box
     const color = CLASS_COLORS[det.classId] ?? '#ffffff'
     const x  = box[0] * cw
@@ -106,9 +141,9 @@ function drawDetections(
     const bw = (box[2] - box[0]) * cw
     const bh = (box[3] - box[1]) * ch
 
-    // Expanded zone ring for flowers and wildlife
-    if (det.classId === 2 || det.classId === 3) {
-      const pad = 0.12
+    // Expanded zone ring for plants and wildlife (the two violation targets)
+    if (det.classId === SFC_PLANT || det.classId === SFC_WILDLIFE) {
+      const pad = det.classId === SFC_WILDLIFE ? 0.15 : 0.12
       const ex = Math.max(0, box[0]-pad) * cw
       const ey = Math.max(0, box[1]-pad) * ch
       const ew = (Math.min(1, box[2]+pad) - Math.max(0, box[0]-pad)) * cw
@@ -126,8 +161,9 @@ function drawDetections(
     ctx.lineWidth   = 2
     ctx.strokeRect(x, y, bw, bh)
 
-    // Label pill
-    const label  = `${CLASS_LABELS[det.classId]} ${(det.confidence * 100).toFixed(0)}%`
+    // Label pill — use cocoLabel for richer display if available
+    const displayName = (det as any).cocoLabel ?? CLASS_LABELS[det.classId] ?? `class_${det.classId}`
+    const label  = `${displayName} ${(det.confidence * 100).toFixed(0)}%`
     ctx.font      = 'bold 12px system-ui, sans-serif'
     const textW   = ctx.measureText(label).width
     const pillH   = 18
@@ -150,7 +186,6 @@ function drawHandSkeleton(
   poseLabel: string
 ) {
   for (const lm of handLms) {
-    // Connections
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
     ctx.lineWidth   = 1.5
     for (const [a, b] of HAND_CONNECTIONS) {
@@ -160,12 +195,11 @@ function drawHandSkeleton(
       ctx.stroke()
     }
 
-    // Keypoints
     for (let i = 0; i < lm.length; i++) {
       const px = lm[i].x * cw
       const py = lm[i].y * ch
       ctx.beginPath()
-      ctx.arc(px, py, i === 0 ? 5 : 3, 0, Math.PI * 2) // wrist larger
+      ctx.arc(px, py, i === 0 ? 5 : 3, 0, Math.PI * 2)
       ctx.fillStyle = i === 0
         ? '#ffffff'
         : poseLabel === 'plucking' ? '#22c55e'
@@ -271,7 +305,6 @@ export default function MonitorPage() {
     const ctx     = overlay.getContext('2d')!
 
     const loop = (timestamp: number) => {
-      // FPS counter
       fpsFrames.current++
       if (timestamp - fpsTimer.current >= 1000) {
         setFps(fpsFrames.current)
@@ -279,10 +312,8 @@ export default function MonitorPage() {
         fpsTimer.current  = timestamp
       }
 
-      // Clear overlay
       ctx.clearRect(0, 0, overlay.width, overlay.height)
 
-      // Smooth bbox interpolation — re-match when raw detections change
       const rawDets = detectionsRef.current
       if (rawDets !== prevRawRef.current) {
         prevRawRef.current = rawDets
@@ -290,20 +321,14 @@ export default function MonitorPage() {
       }
       lerpBoxes(smoothedRef.current, LERP_SPEED)
 
-      // Draw smoothed YOLO bboxes at 60fps
       drawDetections(ctx, smoothedRef.current, overlay.width, overlay.height)
-
-      // Draw hand skeleton (last known)
       drawHandSkeleton(ctx, handLmsRef.current, overlay.width, overlay.height, poseLabelRef.current)
 
-
-      // Send frame to YOLO worker at throttled rate
       frameCount.current++
       if (frameCount.current % INFERENCE_EVERY === 0) {
         sendFrame(video)
       }
 
-      // Run MediaPipe (throttled internally by MP_INTERVAL_MS)
       runMediaPipe(video, timestamp)
 
       rafRef.current = requestAnimationFrame(loop)
@@ -345,7 +370,6 @@ export default function MonitorPage() {
         overlay.height = video.videoHeight
       }, { once: true })
 
-      // Graceful recovery when mobile OS kills camera (notification, screen lock, memory pressure)
       const videoTrack = stream.getVideoTracks()[0]
       if (videoTrack) {
         videoTrack.addEventListener('ended', () => {
@@ -386,7 +410,7 @@ export default function MonitorPage() {
   const handleCapture = useCallback(async () => {
     if (!alert || !videoRef.current || !userId || captureCooldown.current) return
     captureCooldown.current = true
-    setTimeout(() => { captureCooldown.current = false }, 25_000)
+    setTimeout(() => { captureCooldown.current = false }, 8_000)
 
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveTrackId)
@@ -398,29 +422,19 @@ export default function MonitorPage() {
         guideId:         userId,
       })
       showToast('Evidence captured', 'info')
-    } catch (err) {
-      console.error('Capture failed:', err)
-      showToast('Failed to capture evidence clip', 'error')
+    } catch (err: any) {
+      if (err?.message === 'Capture already in progress') {
+        console.warn('Capture skipped — already in progress')
+      } else {
+        console.error('Capture failed:', err)
+        showToast('Failed to capture evidence clip', 'error')
+      }
     }
   }, [alert, userId, effectiveTrackId, showToast])
 
   useEffect(() => {
     if (alert) handleCapture()
   }, [alert, handleCapture])
-
-  function pillStyle(classId: number) {
-    if (classId === 0) return 'bg-blue-100 text-blue-800'
-    if (classId === 1) return 'bg-surface-container-high text-on-surface-variant'
-    if (classId === 2) return 'bg-green-100 text-green-800'
-    return 'bg-tertiary-container text-on-tertiary-container'
-  }
-
-  function pillIcon(classId: number) {
-    if (classId === 0) return 'back_hand'
-    if (classId === 1) return 'person'
-    if (classId === 2) return 'local_florist'
-    return 'pets'
-  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -435,7 +449,7 @@ export default function MonitorPage() {
               Violation Detected
             </p>
             <p className="text-on-error/80 font-semibold mt-2 uppercase tracking-widest text-sm">
-              {alert.type === 'hand_near_flower' ? 'Hand plucking plant' : 'Hand petting wildlife'}
+              {alert.type === 'hand_near_plant' ? 'Hand plucking plant' : 'Hand petting wildlife'}
               {' '}— {alert.source === 'sensor_and_pose'
                 ? `Sensor + AI confirmed — ${(alert.confidence * 100).toFixed(0)}% confidence`
                 : `AI detected — ${(alert.confidence * 100).toFixed(0)}% confidence`
@@ -469,7 +483,6 @@ export default function MonitorPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mt-2.5">
-          {/* FPS counter */}
           {running && (
             <div className="flex items-center gap-1.5 bg-surface-container-high rounded-full px-2.5 py-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
@@ -478,7 +491,6 @@ export default function MonitorPage() {
             </div>
           )}
 
-          {/* Pose label */}
           {running && poseLabel !== '' && (
             <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 ${
               poseLabel === 'plucking' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -493,7 +505,6 @@ export default function MonitorPage() {
           )}
 
           <div className="flex items-center gap-2 ml-auto">
-            {/* Node status */}
             <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 ${
               nodeConnected
                 ? 'bg-green-100 text-green-800'
@@ -510,7 +521,6 @@ export default function MonitorPage() {
               </span>
             </div>
 
-            {/* Model status */}
             <div className="flex items-center gap-1.5 bg-surface-container-high rounded-full px-2.5 py-1">
               <div className={`w-2 h-2 rounded-full shrink-0 ${modelReady ? 'bg-tertiary animate-pulse' : 'bg-outline'}`} />
               <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant whitespace-nowrap">
@@ -673,13 +683,13 @@ export default function MonitorPage() {
               Detected objects
             </p>
             <div className="flex flex-wrap gap-2">
-              {detections.map((d, i) => (
+              {detections.filter(d => d.classId !== SFC_PERSON).map((d, i) => (
                 <div
                   key={i}
-                  className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${pillStyle(d.classId)}`}
+                  className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${CLASS_PILL_STYLES[d.classId] ?? 'bg-surface-container-high text-on-surface-variant'}`}
                 >
-                  <span className="material-symbols-outlined text-sm">{pillIcon(d.classId)}</span>
-                  {d.label} {(d.confidence * 100).toFixed(0)}%
+                  <span className="material-symbols-outlined text-sm">{CLASS_ICONS[d.classId] ?? 'help'}</span>
+                  {(d as any).cocoLabel ?? d.label} {(d.confidence * 100).toFixed(0)}%
                 </div>
               ))}
             </div>

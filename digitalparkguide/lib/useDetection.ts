@@ -1,8 +1,16 @@
 // lib/useDetection.ts
-// Phase 2 — MediaPipe Hand Landmarker integrated.
-// YOLO runs in Web Worker (off main thread) — detects flower/wildlife bboxes.
-// MediaPipe runs on main thread (requires WebGL) — classifies hand pose.
+// Phase 2 — COCO model + MediaPipe Hand Landmarker.
+//
+// YOLO (COCO-80) runs in Web Worker — detects person/plant/wildlife via class remapping.
+// MediaPipe runs on main thread (requires WebGL) — detects hands + classifies pose.
 // Violation gate: pose state (plucking/petting) + bbox proximity = confirmed violation.
+//
+// NEW CLASS IDs (from COCO remap in yolo.worker.js):
+//   0 = person
+//   1 = wildlife
+//   2 = plant
+//
+// Hands are detected ONLY by MediaPipe HandLandmarker (not YOLO).
 
 import type { SensorAlert } from './useSensorNode'
 import { notifyNodeViolation } from './useSensorNode'
@@ -17,6 +25,7 @@ import {
 export interface Detection {
   classId:    number
   label:      string
+  cocoLabel?: string   // e.g. "giraffe", "potted plant" — richer UI labels
   confidence: number
   box:        [number, number, number, number]
 }
@@ -26,11 +35,16 @@ export interface AlertEvent {
   handBox:    Detection | null
   targetBox:  Detection
   confidence: number
-  type:       'hand_near_flower' | 'hand_near_wildlife'
+  type:       'hand_near_plant' | 'hand_near_wildlife'
   source:     'ai_pose' | 'sensor_only' | 'sensor_and_pose'
 }
 
 type PoseState = 'resting' | 'approaching' | 'plucking' | 'petting'
+
+// ── SFC class IDs (must match yolo.worker.js COCO_TO_SFC mapping) ────────────
+const SFC_PERSON   = 0
+const SFC_WILDLIFE = 1
+const SFC_PLANT    = 2
 
 // MediaPipe landmark indices
 const WRIST      = 0
@@ -109,10 +123,10 @@ function isPluckingPose(lm: { x: number; y: number; z: number }[]): boolean {
   const ringExt   = extensionRatio(lm, RING_TIP,   RING_MCP)
   const pinkyExt  = extensionRatio(lm, PINKY_TIP,  PINKY_MCP)
 
-  if (indexExt  < 0.55) return false // index reaching out
-  if (middleExt > 0.65) return false // middle curled
-  if (ringExt   > 0.65) return false // ring curled
-  if (pinkyExt  > 0.65) return false // pinky curled
+  if (indexExt  < 0.55) return false
+  if (middleExt > 0.65) return false
+  if (ringExt   > 0.65) return false
+  if (pinkyExt  > 0.65) return false
 
   return true
 }
@@ -136,7 +150,6 @@ function isPettingPose(
 
   if (wristHistory.length < 8) return false
 
-  // Count direction changes (oscillation)
   const recent = wristHistory.slice(-10)
   let dirChangesX = 0
   let dirChangesY = 0
@@ -254,25 +267,22 @@ export function useDetection(
       return
     }
 
-    // Store normalised landmarks for overlay rendering
     handLmsRef.current = result.landmarks.map(lm =>
       lm.map(p => ({ x: p.x, y: p.y }))
     )
 
-    // Classify using world landmarks (metric space, hand-centred — more stable)
     const worldLms = result.worldLandmarks[0]
 
-    // Update wrist history for petting oscillation
     const wrist = result.landmarks[0][WRIST]
     wristHistory.current.push({ x: wrist.x, y: wrist.y })
     if (wristHistory.current.length > 20) wristHistory.current.shift()
 
     if (isPluckingPose(worldLms)) {
-      poseState.current = 'plucking',
+      poseState.current = 'plucking'
       poseLabelRef.current = 'plucking'
       setPoseLabel('plucking')
     } else if (isPettingPose(worldLms, wristHistory.current)) {
-      poseState.current = 'petting',
+      poseState.current = 'petting'
       poseLabelRef.current = 'petting'
       setPoseLabel('petting')
     } else {
@@ -285,56 +295,61 @@ export function useDetection(
   }, [])
 
   // ── Violation gate ─────────────────────────────────────────────────────────
-const checkViolations = useCallback(() => {
-  if (alertCooldown.current) return
+  // CLASS IDs (from COCO remap):
+  //   0 = person
+  //   1 = wildlife
+  //   2 = plant
+  const checkViolations = useCallback(() => {
+    if (alertCooldown.current) return
 
-  const dets      = detectionsRef.current
-  const flowers   = dets.filter(d => d.classId === 2)
-  const wildlife  = dets.filter(d => d.classId === 3)
-  const yoloHands = dets.filter(d => d.classId === 0)
+    const dets     = detectionsRef.current
+    const plants   = dets.filter(d => d.classId === SFC_PLANT)      // was classId === 2 (flower)
+    const wildlife = dets.filter(d => d.classId === SFC_WILDLIFE)   // was classId === 3
 
-  const handBoxes: [number,number,number,number][] =
-    handLmsRef.current.length > 0
-      ? handLmsRef.current.map(lm => landmarksToBbox(lm))
-      : yoloHands.map(h => h.box)
+    // Hands come from MediaPipe landmarks only (COCO doesn't detect hands)
+    const handBoxes: [number,number,number,number][] =
+      handLmsRef.current.length > 0
+        ? handLmsRef.current.map(lm => landmarksToBbox(lm))
+        : []
 
-  if (handBoxes.length === 0) return
+    if (handBoxes.length === 0) return
 
-  // ── Plant violation — ALL THREE required ──────────────────────────────────
-  // sensor active + plucking pose + flower bbox = violation
-  // Any missing = no violation
-  if (poseState.current === 'plucking') {
-    const sensorActive =
+    // ── Plant violation — ALL THREE required ────────────────────────────────
+    // ── Plant violation ─────────────────────────────────────────────────────
+if (poseState.current === 'plucking' && plants.length > 0) {
+  const sensorConnected =
+    sensorAlertRef?.current !== null && sensorAlertRef?.current !== undefined
+
+  if (sensorConnected) {
+    // Sensor connected → fire on proximity alone (within 20cm)
+    const withinRange =
       sensorAlertRef?.current?.active === true &&
-      sensorAlertRef.current.type === 'plant_intrusion'
+      sensorAlertRef.current.distance <= 20
 
-    if (!sensorActive)        return  // sensor not triggered
-    if (flowers.length === 0) return  // no flower detected
+    if (!withinRange) return
 
     for (const handBox of handBoxes) {
-      for (const flower of flowers) {
-        if (iou(handBox, expandBox(flower.box, 0.12)) > 0.05) {
+      for (const plant of plants) {
+        if (iou(handBox, expandBox(plant.box, 0.12)) > 0.01) {
           triggerAlert({
-            handBox: { classId: 0, label: 'hand', confidence: 0.95, box: handBox },
-            target:  flower,
-            type:    'hand_near_flower',
+            handBox: { classId: -1, label: 'hand', confidence: 0.95, box: handBox },
+            target:  plant,
+            type:    'hand_near_plant',
             source:  'sensor_and_pose',
           })
           return
         }
       }
     }
-  }
-
-  // ── Wildlife violation — AI only (sensor not required) ────────────────────
-  if (poseState.current === 'petting') {
+  } else {
+    // No sensor → fire on plucking pose + plant bbox overlap
     for (const handBox of handBoxes) {
-      for (const animal of wildlife) {
-        if (iou(handBox, expandBox(animal.box, 0.15)) > 0.05) {
+      for (const plant of plants) {
+        if (iou(handBox, expandBox(plant.box, 0.12)) > 0.01) {
           triggerAlert({
-            handBox: { classId: 0, label: 'hand', confidence: 0.95, box: handBox },
-            target:  animal,
-            type:    'hand_near_wildlife',
+            handBox: { classId: -1, label: 'hand', confidence: 0.95, box: handBox },
+            target:  plant,
+            type:    'hand_near_plant',
             source:  'ai_pose',
           })
           return
@@ -342,7 +357,25 @@ const checkViolations = useCallback(() => {
       }
     }
   }
-}, [])
+}
+
+    // ── Wildlife violation — AI only (sensor not required) ──────────────────
+    if (poseState.current === 'petting') {
+      for (const handBox of handBoxes) {
+        for (const animal of wildlife) {
+          if (iou(handBox, expandBox(animal.box, 0.15)) > 0.05) {
+            triggerAlert({
+              handBox: { classId: -1, label: 'hand', confidence: 0.95, box: handBox },
+              target:  animal,
+              type:    'hand_near_wildlife',
+              source:  'ai_pose',
+            })
+            return
+          }
+        }
+      }
+    }
+  }, [])
 
   // ── Alert ──────────────────────────────────────────────────────────────────
   function triggerAlert({

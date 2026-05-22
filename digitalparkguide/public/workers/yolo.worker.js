@@ -1,40 +1,67 @@
 // public/workers/yolo.worker.js
 // Runs entirely off the main thread.
 // Receives ImageBitmap frames, runs ONNX inference, returns parsed detections.
+//
+// MODEL: YOLOv8n pretrained on COCO-80 (yolov8n_coco.onnx)
+// Output shape: [1, 84, 8400] — 80 class scores + 4 bbox coords × 8400 anchors
+//
+// COCO classes are remapped to the project's 3-class schema:
+//   person   (sfcId 0) ← COCO class 0
+//   wildlife (sfcId 1) ← COCO classes 14-23 (bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe)
+//   plant    (sfcId 2) ← COCO class 58 (potted plant)
+//
+// Hands are NOT detected here — MediaPipe HandLandmarker handles hands on the main thread.
 
 importScripts('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/ort.min.js')
 
 // ── Config ───────────────────────────────────────────────────────────────────
-const INPUT_SIZE = 640
-const CONF_THRESHOLD = {
-  0: 0.45,  // hand
-  1: 0.45,  // person
-  2: 0.10,  // plant — lower threshold, model weaker on this class
-  3: 0.30,  // wildlife
-}
-const IOU_THRESHOLD  = 0.45
-const NUM_BOXES      = 8400
-const NUM_CLASSES    = 4
+const INPUT_SIZE       = 640
+const IOU_THRESHOLD    = 0.45
+const NUM_BOXES        = 8400
+const NUM_COCO_CLASSES = 80
 
-const CLASS_NAMES = { 0: 'hand', 1: 'person', 2: 'plant', 3: 'wildlife' }
+// ── COCO → SFC class mapping ─────────────────────────────────────────────────
+// Only these COCO classes are relevant. Everything else (car, chair, etc.) is ignored.
+const COCO_TO_SFC = {
+  0:  { sfcId: 0, sfcLabel: 'person',   cocoLabel: 'wildlife' },
+  14: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  15: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  16: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  17: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  18: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  19: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  20: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  21: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  22: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  23: { sfcId: 1, sfcLabel: 'wildlife', cocoLabel: 'wildlife' },
+  58: { sfcId: 2, sfcLabel: 'plant',    cocoLabel: 'plant' },
+}
+
+// Fast lookup set for the hot loop
+const RELEVANT_COCO_IDS = new Set(Object.keys(COCO_TO_SFC).map(Number))
+
+// Per-SFC-class confidence thresholds
+const SFC_CONF_THRESHOLD = {
+  0: 0.45,  // person
+  1: 0.35,  // wildlife
+  2: 0.15,  // plant
+}
 
 // ── State ────────────────────────────────────────────────────────────────────
 let session = null
 let canvas  = null
 let ctx     = null
-// Reuse Float32Array across frames — avoids GC pressure
 let float32 = new Float32Array(3 * INPUT_SIZE * INPUT_SIZE)
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
   ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/'
-  ort.env.wasm.numThreads = 2 // leave cores for main thread + MediaPipe
+  ort.env.wasm.numThreads = 2
 
-  // OffscreenCanvas for frame preprocessing inside worker
   canvas = new OffscreenCanvas(INPUT_SIZE, INPUT_SIZE)
   ctx    = canvas.getContext('2d')
 
-  session = await ort.InferenceSession.create('/models/V3.onnx', {
+  session = await ort.InferenceSession.create('/models/yolov8n_coco.onnx', {
     executionProviders: ['wasm'],
   })
 
@@ -60,12 +87,22 @@ function nms(detections) {
     )
     if (!overlap) kept.push(det)
   }
+
+  // Suppress person boxes that heavily overlap wildlife/plant —
+  // hand/arm near animal causes YOLO to classify region as person,
+  // stealing the wildlife detection
+  const wildlife = kept.filter(d => d.classId === 1 || d.classId === 2)
+  if (wildlife.length > 0) {
+    return kept.filter(d => {
+      if (d.classId !== 0) return true
+      return !wildlife.some(w => iou(d.box, w.box) > 0.3)
+    })
+  }
+
   return kept
 }
 
 // ── Letterbox ────────────────────────────────────────────────────────────────
-// Scales the frame to fit inside INPUT_SIZE×INPUT_SIZE with padding,
-// preserving aspect ratio. Returns {scale, padX, padY} for coordinate remapping.
 function letterboxDraw(bitmap) {
   const scale = Math.min(INPUT_SIZE / bitmap.width, INPUT_SIZE / bitmap.height)
   const newW  = Math.round(bitmap.width  * scale)
@@ -73,7 +110,6 @@ function letterboxDraw(bitmap) {
   const padX  = Math.floor((INPUT_SIZE - newW) / 2)
   const padY  = Math.floor((INPUT_SIZE - newH) / 2)
 
-  // Fill background grey (114,114,114) — YOLOv8 default letterbox colour
   ctx.fillStyle = 'rgb(114,114,114)'
   ctx.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE)
   ctx.drawImage(bitmap, padX, padY, newW, newH)
@@ -86,41 +122,45 @@ async function runInference(bitmap) {
   if (!session) return null
 
   const { scale, padX, padY } = letterboxDraw(bitmap)
-  bitmap.close() // release GPU memory immediately
+  bitmap.close()
 
-  // RGB channel separation — reuses pre-allocated Float32Array
   const imageData = ctx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE)
   const px = imageData.data
   const stride = INPUT_SIZE * INPUT_SIZE
 
   for (let i = 0; i < stride; i++) {
     const idx = i * 4
-    float32[i]            = px[idx]     / 255  // R
-    float32[stride + i]   = px[idx + 1] / 255  // G
-    float32[stride*2 + i] = px[idx + 2] / 255  // B
+    float32[i]            = px[idx]     / 255
+    float32[stride + i]   = px[idx + 1] / 255
+    float32[stride*2 + i] = px[idx + 2] / 255
   }
 
   const tensor  = new ort.Tensor('float32', float32, [1, 3, INPUT_SIZE, INPUT_SIZE])
   const results = await session.run({ images: tensor })
-  const output  = results['output0'].data // Float32Array
+  const output  = results['output0'].data // Float32Array [1, 84, 8400]
 
-  // Parse boxes
   const detected = []
   for (let i = 0; i < NUM_BOXES; i++) {
-    let bestClass = -1, bestScore = 0
-    for (let c = 0; c < NUM_CLASSES; c++) {
+    // Find best scoring class across all 80 COCO classes
+    let bestCocoClass = -1, bestScore = 0
+    for (let c = 0; c < NUM_COCO_CLASSES; c++) {
       const score = output[(4 + c) * NUM_BOXES + i]
-      if (score > bestScore) { bestScore = score; bestClass = c }
+      if (score > bestScore) { bestScore = score; bestCocoClass = c }
     }
-    if (bestScore < (CONF_THRESHOLD[bestClass] ?? 0.30) || bestClass < 0) continue
 
-    // Raw coords in letterboxed 640×640 space → normalised 0-1 in original frame
+    // Skip irrelevant COCO classes (car, chair, laptop, etc.)
+    if (!RELEVANT_COCO_IDS.has(bestCocoClass)) continue
+
+    const mapping = COCO_TO_SFC[bestCocoClass]
+
+    // Apply per-class confidence threshold
+    if (bestScore < (SFC_CONF_THRESHOLD[mapping.sfcId] ?? 0.35)) continue
+
     const cx = output[0 * NUM_BOXES + i]
     const cy = output[1 * NUM_BOXES + i]
     const w  = output[2 * NUM_BOXES + i]
     const h  = output[3 * NUM_BOXES + i]
 
-    // Remove letterbox padding, rescale to original frame dimensions
     const x1 = (cx - w / 2 - padX) / (INPUT_SIZE - 2 * padX)
     const y1 = (cy - h / 2 - padY) / (INPUT_SIZE - 2 * padY)
     const x2 = (cx + w / 2 - padX) / (INPUT_SIZE - 2 * padX)
@@ -128,12 +168,12 @@ async function runInference(bitmap) {
 
     const bw = x2 - x1
     const bh = y2 - y1
-    // Filter tiny boxes and huge boxes (noise / full-frame false detections)
     if (bw < 0.01 || bh < 0.01 || bw > 0.85 || bh > 0.85) continue
 
     detected.push({
-      classId:    bestClass,
-      label:      CLASS_NAMES[bestClass] ?? `class_${bestClass}`,
+      classId:    mapping.sfcId,
+      label:      mapping.sfcLabel,
+      cocoLabel:  mapping.cocoLabel,
       confidence: bestScore,
       box: [
         Math.max(0, x1), Math.max(0, y1),

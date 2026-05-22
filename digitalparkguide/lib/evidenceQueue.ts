@@ -1,5 +1,5 @@
 const DB_NAME = 'digitalparkguide_evidence'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NAME = 'evidence_queue'
 
 export interface LocalEvidenceClip {
@@ -14,6 +14,7 @@ export interface LocalEvidenceClip {
   trackId: string | null
   tpaLabel: string | null
   guideId: string
+  sessionId: string
   syncStatus: 'pending' | 'uploading' | 'synced' | 'failed'
   retryCount: number
   clipUrl?: string
@@ -24,11 +25,17 @@ export interface LocalEvidenceClip {
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const store = db.createObjectStore(STORE_NAME, { keyPath: 'localQueueId' })
         store.createIndex('syncStatus', 'syncStatus', { unique: false })
+        store.createIndex('sessionId', 'sessionId', { unique: false })
+      } else if ((event as IDBVersionChangeEvent).oldVersion < 2) {
+        const store = req.transaction!.objectStore(STORE_NAME)
+        if (!store.indexNames.contains('sessionId')) {
+          store.createIndex('sessionId', 'sessionId', { unique: false })
+        }
       }
     }
     req.onsuccess = () => resolve(req.result)

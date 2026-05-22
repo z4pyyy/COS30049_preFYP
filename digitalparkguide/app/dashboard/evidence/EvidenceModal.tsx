@@ -14,6 +14,7 @@ interface EvidenceClip {
   detection_type: string
   confidence_score: number
   status: string
+  session_id: string | null
   training_tracks: { id: string; title: string; tpa_name: string } | null
   profiles: { full_name: string } | null
 }
@@ -52,8 +53,8 @@ export default function EvidenceModal({
     try {
       const res = await fetch(`/api/evidence/${clip.id}/signed-url`)
       if (res.ok) {
-        const { clipUrl } = await res.json()
-        setVideoUrl(clipUrl)
+        const data = await res.json()
+        setVideoUrl(data.clipUrl)
       }
     } finally {
       setLoadingUrl(false)
@@ -81,9 +82,10 @@ export default function EvidenceModal({
         onClick={e => e.stopPropagation()}
       >
         {/* Video player */}
-        <div className="relative aspect-video bg-black rounded-t-2xl overflow-hidden">
+        <div className="relative aspect-video bg-black overflow-hidden rounded-t-2xl">
           {videoUrl ? (
             <video
+              key={videoUrl}
               src={videoUrl}
               controls
               className="w-full h-full object-contain"

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     .select(`
       id, guide_id, track_id, tpa_label, clip_url, thumbnail_url,
       detected_at, duration_seconds, detection_type,
-      confidence_score, status, sync_status, created_at
+      confidence_score, status, sync_status, session_id, created_at
     `)
     .eq('sync_status', 'synced')
     .order('detected_at', { ascending: false })

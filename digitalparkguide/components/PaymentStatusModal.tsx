@@ -6,7 +6,7 @@ export default function PaymentStatusModal() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const status = searchParams.get('payment') // 'success' | 'cancelled' | null
-  const amountMyr = parseInt(searchParams.get('amount') ?? '0') || null
+  const amountMyr = parseFloat(searchParams.get('amount') ?? '0') || null
 
   if (!status) return null
 
@@ -29,7 +29,7 @@ export default function PaymentStatusModal() {
             <h2 className="text-2xl font-black text-[#1B3A24] mb-2">Payment Successful</h2>
             <p className="text-[#475569] text-sm mb-1">Amount paid</p>
             <p className="text-3xl font-black text-[#1B3A24] mb-5">
-              {amountMyr ? `RM ${amountMyr.toLocaleString('en-MY')}.00` : '—'}
+              {amountMyr ? `RM ${amountMyr.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
             </p>
             <p className="text-[#64748b] text-sm mb-7 leading-relaxed">
               Your training track has been activated. You can now access all modules.

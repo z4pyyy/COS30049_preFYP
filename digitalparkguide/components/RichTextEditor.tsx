@@ -133,6 +133,7 @@ export function RichTextEditor({
           return (
             <button
               key={btn.label}
+              type="button"
               onClick={btn.action}
               title={btn.title}
               className="px-3 py-1.5 text-sm font-medium text-[#1B3A24] hover:bg-[#e2e8f0] active:bg-[#cbd5e1] rounded transition-colors"
@@ -146,6 +147,7 @@ export function RichTextEditor({
 
         {/* Preview Toggle */}
         <button
+          type="button"
           onClick={() => setShowPreview(!showPreview)}
           title="Toggle preview"
           className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${

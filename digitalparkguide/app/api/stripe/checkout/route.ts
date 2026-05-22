@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
         },
         quantity: 1,
       }],
-      success_url: `${origin}/training/tracks?tab=general-modules&payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/training/tracks?tab=general-modules&payment=success&session_id={CHECKOUT_SESSION_ID}&amount=${gm.price_myr}`,
       cancel_url: `${origin}/training/tracks?tab=general-modules&payment=cancelled`,
       metadata: {
         type: 'general_module',
@@ -189,12 +189,15 @@ export async function POST(req: NextRequest) {
     }
 
     const paidGmIds = gms.filter(g => g.price_myr > 0).map(g => g.id)
+    const bundleTotalMyr =
+      gms.filter(g => g.price_myr > 0).reduce((sum, g) => sum + g.price_myr, 0) +
+      (trackPriceMyr > 0 ? trackPriceMyr : 0)
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       currency: 'myr',
       line_items: lineItems,
-      success_url: `${origin}/training/tracks?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/training/tracks?payment=success&session_id={CHECKOUT_SESSION_ID}&amount=${bundleTotalMyr}`,
       cancel_url: `${origin}/training/tracks?payment=cancelled`,
       metadata: {
         type: 'bundle',

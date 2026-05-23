@@ -109,14 +109,14 @@ export function startPreRollBuffer(
   renderOverlay(compCtx, w, h)
 
   recordStream = typeof compCanvas.captureStream === 'function'
-    ? compCanvas.captureStream(30)
+    ? compCanvas.captureStream(15)
     : videoEl.srcObject as MediaStream
 
   compositeInterval = setInterval(() => {
     if (!compCtx || !savedVideoEl) return
     compCtx.drawImage(savedVideoEl, 0, 0, w, h)
     if (savedOverlayFn) savedOverlayFn(compCtx, w, h)
-  }, 33)
+  }, 66)
 
   currentSessionId = crypto.randomUUID()
 

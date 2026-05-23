@@ -48,18 +48,19 @@ const SFC_CONF_THRESHOLD = {
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
-let session = null
-let canvas  = null
-let ctx     = null
-let float32 = new Float32Array(3 * INPUT_SIZE * INPUT_SIZE)
+let session  = null
+let canvas   = null
+let ctx      = null
+let float32  = new Float32Array(3 * INPUT_SIZE * INPUT_SIZE)
+let imgData  = null
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
   ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/'
   ort.env.wasm.numThreads = 2
 
-  canvas = new OffscreenCanvas(INPUT_SIZE, INPUT_SIZE)
-  ctx    = canvas.getContext('2d')
+  canvas  = new OffscreenCanvas(INPUT_SIZE, INPUT_SIZE)
+  ctx     = canvas.getContext('2d', { willReadFrequently: true })
 
   session = await ort.InferenceSession.create('/models/yolov8n_coco.onnx', {
     executionProviders: ['wasm'],

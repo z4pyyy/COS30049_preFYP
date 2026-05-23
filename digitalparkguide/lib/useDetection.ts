@@ -171,7 +171,7 @@ export function useDetection(
   const handLandmarkerRef = useRef<HandLandmarker | null>(null)
   const mediapipeReady    = useRef(false)
   const lastMpTime        = useRef(0)
-  const MP_INTERVAL_MS    = 80
+  const MP_INTERVAL_MS    = 150
 
   const wristHistory = useRef<{ x: number; y: number }[]>([])
   const poseState    = useRef<PoseState>('resting')
@@ -237,7 +237,12 @@ export function useDetection(
         console.error('[MediaPipe] init failed:', err)
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      handLandmarkerRef.current?.close()
+      handLandmarkerRef.current = null
+      mediapipeReady.current = false
+    }
   }, [])
 
   // ── MediaPipe frame processing ─────────────────────────────────────────────
@@ -314,50 +319,27 @@ export function useDetection(
 
     if (handBoxes.length === 0) return
 
-    // ── Plant violation — ALL THREE required ────────────────────────────────
-    // ── Plant violation ─────────────────────────────────────────────────────
-if (poseState.current === 'plucking' && plants.length > 0) {
-  const sensorConnected =
-    sensorAlertRef?.current !== null && sensorAlertRef?.current !== undefined
-
-  if (sensorConnected) {
-    // Sensor connected → fire on proximity alone (within 20cm)
-    const withinRange =
+    // ── Plant violation — ALL THREE required: plucking + bbox overlap + sensor ≤20cm
+    if (
+      poseState.current === 'plucking' &&
+      plants.length > 0 &&
       sensorAlertRef?.current?.active === true &&
       sensorAlertRef.current.distance <= 20
-
-    if (!withinRange) return
-
-    for (const handBox of handBoxes) {
-      for (const plant of plants) {
-        if (iou(handBox, expandBox(plant.box, 0.12)) > 0.01) {
-          triggerAlert({
-            handBox: { classId: -1, label: 'hand', confidence: 0.95, box: handBox },
-            target:  plant,
-            type:    'hand_near_plant',
-            source:  'sensor_and_pose',
-          })
-          return
+    ) {
+      for (const handBox of handBoxes) {
+        for (const plant of plants) {
+          if (iou(handBox, expandBox(plant.box, 0.12)) > 0.01) {
+            triggerAlert({
+              handBox: { classId: -1, label: 'hand', confidence: 0.95, box: handBox },
+              target:  plant,
+              type:    'hand_near_plant',
+              source:  'sensor_and_pose',
+            })
+            return
+          }
         }
       }
     }
-  } else {
-    // No sensor → fire on plucking pose + plant bbox overlap
-    for (const handBox of handBoxes) {
-      for (const plant of plants) {
-        if (iou(handBox, expandBox(plant.box, 0.12)) > 0.01) {
-          triggerAlert({
-            handBox: { classId: -1, label: 'hand', confidence: 0.95, box: handBox },
-            target:  plant,
-            type:    'hand_near_plant',
-            source:  'ai_pose',
-          })
-          return
-        }
-      }
-    }
-  }
-}
 
     // ── Wildlife violation — AI only (sensor not required) ──────────────────
     if (poseState.current === 'petting') {

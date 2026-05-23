@@ -25,8 +25,16 @@ export async function proxy(request: NextRequest) {
     }
   )
 
+  const { pathname, searchParams } = request.nextUrl
+
+  // Supabase PKCE: email confirmation lands on /?code=... — forward to auth callback
+  if (pathname === '/' && searchParams.get('code')) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/callback'
+    return NextResponse.redirect(url)
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
-  const { pathname } = request.nextUrl
 
   // Skip internal/auth paths entirely
   if (ALWAYS_SKIP.some(p => pathname.startsWith(p))) {

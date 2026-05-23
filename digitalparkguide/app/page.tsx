@@ -134,6 +134,8 @@ const stats = [
 export default async function HomePage() {
   const [announcements, authResult] = await Promise.all([getAnnouncements(), getAuthUser()]);
   const user = authResult?.user ?? null;
+  const role = authResult?.role ?? null;
+  const isPublic = user && role === 'PUBLIC';
 
   const featured = announcements[0];
   const rest = announcements.slice(1);
@@ -174,12 +176,14 @@ export default async function HomePage() {
               >
                 Latest Announcements
               </Link>
-              <Link
-                href={user ? "/apply-guide" : "/register"}
-                className="border border-white/40 text-white px-6 py-3 rounded-md font-semibold text-sm hover:bg-white/10 transition-colors"
-              >
-                Register as Guide →
-              </Link>
+              {(!user || isPublic) && (
+                <Link
+                  href={isPublic ? "/apply-guide" : "/register"}
+                  className="border border-white/40 text-white px-6 py-3 rounded-md font-semibold text-sm hover:bg-white/10 transition-colors"
+                >
+                  {isPublic ? "Register as Guide →" : "Sign Up →"}
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -295,22 +299,24 @@ export default async function HomePage() {
         {/* Right: Sidebar ──────────────────────────────────── */}
         <div className="space-y-6">
 
-          {/* Register as Guide CTA */}
-          <div className="bg-[#012d1d] rounded-xl p-6 text-white relative overflow-hidden">
-            <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/5" />
-            <div className="absolute -right-2 -bottom-4 w-16 h-16 rounded-full bg-white/5" />
-            <p className="text-[10px] uppercase tracking-widest text-green-400 font-bold mb-2">Certification Programme</p>
-            <h3 className="text-lg font-bold leading-snug mb-3">Become a Certified Guide</h3>
-            <p className="text-xs text-white/60 leading-relaxed mb-5">
-              Complete SFC&apos;s accredited training to lead groups through Sarawak&apos;s protected forest areas.
-            </p>
-            <Link
-              href={user ? "/apply-guide" : "/register"}
-              className="block text-center bg-white text-[#012d1d] text-sm font-bold px-4 py-3 rounded-lg hover:bg-green-50 transition-colors"
-            >
-              Register as Guide →
-            </Link>
-          </div>
+          {/* Register / Sign Up CTA */}
+          {(!user || isPublic) && (
+            <div className="bg-[#012d1d] rounded-xl p-6 text-white relative overflow-hidden">
+              <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full bg-white/5" />
+              <div className="absolute -right-2 -bottom-4 w-16 h-16 rounded-full bg-white/5" />
+              <p className="text-[10px] uppercase tracking-widest text-green-400 font-bold mb-2">Certification Programme</p>
+              <h3 className="text-lg font-bold leading-snug mb-3">Become a Certified Guide</h3>
+              <p className="text-xs text-white/60 leading-relaxed mb-5">
+                Complete SFC&apos;s accredited training to lead groups through Sarawak&apos;s protected forest areas.
+              </p>
+              <Link
+                href={isPublic ? "/apply-guide" : "/register"}
+                className="block text-center bg-white text-[#012d1d] text-sm font-bold px-4 py-3 rounded-lg hover:bg-green-50 transition-colors"
+              >
+                {isPublic ? "Register as Guide →" : "Sign Up →"}
+              </Link>
+            </div>
+          )}
 
           {/* Quick Links */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">

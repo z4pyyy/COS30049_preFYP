@@ -128,8 +128,8 @@ export default function TopNavView({ active, authed, name, email, role, context,
                     className="flex items-center gap-1.5 bg-primary text-white px-3 sm:px-4 py-2 rounded-md text-sm font-semibold hover:bg-[#024a2f] transition-colors"
                   >
                     <span className="text-base leading-none">✦</span>
-                    <span className="hidden sm:inline">Register as Guide</span>
-                    <span className="sm:hidden">Register</span>
+                    <span className="hidden sm:inline">Sign Up</span>
+                    <span className="sm:hidden">Sign Up</span>
                   </Link>
                 </>
               )}

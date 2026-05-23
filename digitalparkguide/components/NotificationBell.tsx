@@ -6,22 +6,23 @@ import Link from 'next/link'
 export default function NotificationBell() {
   const [count, setCount] = useState(0)
 
-  useEffect(() => {
-    let cancelled = false
-    async function fetchCount() {
-      try {
-        const res = await fetch('/api/notifications', { cache: 'no-store' })
-        if (!res.ok) return
-        const body = await res.json()
-        if (!cancelled) setCount(body.unread_count ?? 0)
-      } catch {
-        // silent
-      }
-    }
-    fetchCount()
-    const interval = setInterval(fetchCount, 30000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [])
+  // POLLING DISABLED — re-enable after Supabase disk IO budget recovers
+  // useEffect(() => {
+  //   let cancelled = false
+  //   async function fetchCount() {
+  //     try {
+  //       const res = await fetch('/api/notifications', { cache: 'no-store' })
+  //       if (!res.ok) return
+  //       const body = await res.json()
+  //       if (!cancelled) setCount(body.unread_count ?? 0)
+  //     } catch {
+  //       // silent
+  //     }
+  //   }
+  //   fetchCount()
+  //   const interval = setInterval(fetchCount, 30000)
+  //   return () => { cancelled = true; clearInterval(interval) }
+  // }, [])
 
   return (
     <Link

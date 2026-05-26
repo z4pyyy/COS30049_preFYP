@@ -64,14 +64,14 @@ const HAND_CONNECTIONS: [number, number][] = [
 const INFERENCE_EVERY = 2
 
 // ── Bbox smoothing ───────────────────────────────────────────────────────────
-const LERP_SPEED = 0.35
+const LERP_SPEED = 1.0
 
 interface SmoothedDetection extends Detection {
   smoothBox: [number, number, number, number]
   missedFrames?: number
 }
 
-const PERSIST_FRAMES = 8
+const PERSIST_FRAMES = 0
 
 function matchDetections(
   prev: SmoothedDetection[],

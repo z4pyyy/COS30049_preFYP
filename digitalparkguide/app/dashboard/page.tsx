@@ -3,13 +3,15 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { hasMinRole, can, type AppRole } from "@/types/roles";
+import { hasMinRole, type AppRole } from "@/types/roles";
 import { ModuleEditorForm, ModuleEditorState } from "@/components/ModuleEditorForm";
 import { GeneralModuleEditorForm, GeneralModuleEditorState } from "@/components/GeneralModuleEditorForm";
 import { ModuleHistoryPanel } from "@/components/ModuleHistoryPanel";
 import TrainingProgressWidget from "@/components/TrainingProgressWidget";
 import MyBadgesWidget from "@/components/MyBadgesWidget";
 import { GuideBadgesSection } from "@/components/GuideBadgesSection";
+import IoTMonitorSection from "@/components/dashboard/iot/IoTMonitorSection";
+
 import type { BadgeRecord } from "@/lib/badges/insert-badge";
 import ThemedSelect from "@/components/ThemedSelect";
 
@@ -79,47 +81,6 @@ interface Application {
   training_tracks: { title: string } | null;
 }
 
-const FEED_ITEMS = [
-  {
-    id: 1,
-    icon: "report_problem",
-    iconBg: "bg-red-100",
-    iconColor: "text-red-700",
-    fill: false,
-    title: "Unsanctioned Movement Detected",
-    time: "02 MIN AGO",
-    body: "Grid 42-B. 3 individuals without active permits. Ranger team dispatching.",
-    action: "Assign Guide",
-  },
-  {
-    id: 2,
-    icon: "school",
-    iconBg: "bg-emerald-100",
-    iconColor: "text-emerald-800",
-    fill: true,
-    title: "Module Completion: Advanced Tracking",
-    time: "14 MIN AGO",
-    body: "Ahmad bin Yusuf (Ranger ID: SFC-771) has completed the certification.",
-    action: "Verify Bio",
-  },
-  {
-    id: 3,
-    icon: "info",
-    iconBg: "bg-blue-100",
-    iconColor: "text-blue-800",
-    fill: false,
-    title: "System Update: Biodiversity 2.4",
-    time: "1 HOUR AGO",
-    body: "New AR overlays added for orchid identification in Guide Track.",
-    action: "Release Notes",
-  },
-]
-
-const PATROL_MEMBERS = [
-  { name: "Ahmad bin Yusuf", track: "Bako NP — Zone Alpha", progress: 78 },
-  { name: "Siti Aminah", track: "Kubah NP — Zone Bravo", progress: 55 },
-  { name: "James Masing", track: "Gunung Mulu — Zone Delta", progress: 92 },
-]
 
 function DashboardContent() {
   const router = useRouter();
@@ -1600,6 +1561,10 @@ function DashboardContent() {
 
   return (
     <>
+      <section className="p-4 sm:p-6 lg:p-8">
+        <IoTMonitorSection />
+      </section>
+
       <section className="p-4 sm:p-6 lg:p-8 space-y-6">
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-[#1B3A24]">{heading}</h1>
@@ -1611,124 +1576,6 @@ function DashboardContent() {
         {widgetMode === 'guide' && <MyBadgesWidget />}
       </section>
 
-      <section className="p-4 sm:p-6 lg:p-8 space-y-8">
-          {/* B7.4 — Certification badges (GUIDE+ only) */}
-          {hasMinRole(userRole, "GUIDE") && (
-            <GuideBadgesSection badges={badges} loading={badgesLoading} />
-          )}
-
-          {/* Bento grid */}
-          <div className="grid grid-cols-12 gap-4 sm:gap-8 items-start">
-            {/* Main feed */}
-            <div className="col-span-12 lg:col-span-8 space-y-8">
-              <div className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0_20px_40px_rgba(25,28,29,0.06)]">
-                <div className="relative h-64 overflow-hidden">
-                  <div
-                    className="w-full h-full bg-cover bg-center"
-                    style={{
-                      backgroundImage: "url('https://images.unsplash.com/photo-1448375240586-882707db888b?w=1200&q=80')",
-                      backgroundBlendMode: "color-burn",
-                      backgroundColor: "rgba(1,45,29,0.2)",
-                    }}
-                  />
-                  <div className="absolute inset-0 p-4 sm:p-8 flex flex-col justify-end bg-gradient-to-t from-primary/80 to-transparent">
-                    <h2 className="text-white text-xl sm:text-3xl font-bold tracking-tight">Zone Alpha Surveillance</h2>
-                    <p className="text-emerald-100/80 max-w-md text-sm">Real-time biodiversity monitoring and training track integration for Bako National Park.</p>
-                  </div>
-                  <div className="absolute top-6 right-6 flex gap-2">
-                    <span className="bg-primary/40 backdrop-blur-md text-white text-[0.625rem] px-3 py-1 rounded-full uppercase tracking-tighter border border-white/20">Live GPS Active</span>
-                    <span className="bg-[#DC2E27]/40 backdrop-blur-md text-white text-[0.625rem] px-3 py-1 rounded-full uppercase tracking-tighter border border-white/20">AI Detection On</span>
-                  </div>
-                </div>
-
-                <div className="p-4 sm:p-8">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
-                    <h3 className="text-lg sm:text-xl font-bold text-primary">Training Alerts &amp; Incidents</h3>
-                    {can(userRole, "view:own-guides") && (
-                      <button className="text-primary text-sm font-bold flex items-center gap-2 hover:underline">
-                        View Full Report <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="space-y-4">
-                    {FEED_ITEMS.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 sm:gap-6 p-3 sm:p-4 bg-surface-container-low rounded-xl group hover:bg-surface-container-high transition-all">
-                        <div className={`h-12 w-12 rounded-full ${item.iconBg} flex items-center justify-center ${item.iconColor} shrink-0`}>
-                          <span className="material-symbols-outlined" style={item.fill ? { fontVariationSettings: "'FILL' 1" } : undefined}>
-                            {item.icon}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start">
-                            <h4 className="font-bold text-primary text-sm">{item.title}</h4>
-                            <span className="text-[0.625rem] text-on-surface-variant font-medium shrink-0 ml-2">{item.time}</span>
-                          </div>
-                          <p className="text-sm text-secondary mt-0.5">{item.body}</p>
-                        </div>
-                        {/* A2.4 — Action buttons only for SENIOR_GUIDE+ */}
-                        {can(userRole, "mentor:guides") && (
-                          <button className="bg-primary text-white text-xs px-4 py-2 rounded-lg font-bold opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                            {item.action}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right sidebar widgets */}
-            <div className="col-span-12 lg:col-span-4 space-y-8">
-              {/* Active patrols */}
-              <div className="bg-surface-container-lowest p-6 rounded-xl shadow-[0_20px_40px_rgba(25,28,29,0.06)] space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-bold text-primary">Active Patrols</h3>
-                  <span className="text-[0.625rem] text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-bold uppercase">12 Teams Out</span>
-                </div>
-                <div className="aspect-square rounded-xl overflow-hidden relative border border-outline-variant/15 bg-primary-container/20">
-                  <div className="absolute inset-0 bg-primary/20" />
-                  <div className="absolute top-4 left-4 flex flex-col gap-1">
-                    <div className="bg-white/90 backdrop-blur-sm p-1.5 rounded-lg shadow-sm flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-[#DC2E27] animate-ping" />
-                      <span className="text-[0.5rem] font-bold text-primary uppercase">POI 02: Alert</span>
-                    </div>
-                    <div className="bg-emerald-950/90 backdrop-blur-sm p-1.5 rounded-lg shadow-sm flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span className="text-[0.5rem] font-bold text-white uppercase">Team Alpha: Active</span>
-                    </div>
-                  </div>
-                  <div className="absolute bottom-4 right-4 text-[10px] text-emerald-400/80 font-mono tracking-tighter leading-none text-right">
-                    LAT: 1.5533° N<br />LON: 110.3592° E<br />ALT: 42M
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {PATROL_MEMBERS.map(({ name, track, progress }) => (
-                    <div key={name} className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-primary text-xl">person</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-primary truncate">{name}</p>
-                        <p className="text-[10px] text-secondary">{track}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[10px] font-mono text-emerald-700">Patrolling</p>
-                        <div className="h-1 w-12 bg-emerald-200 rounded-full mt-1">
-                          <div className="h-1 bg-emerald-500 rounded-full" style={{ width: `${progress}%` }} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-
-            </div>
-          </div>
-        </section>
 
         <footer className="w-full py-8 mt-auto bg-emerald-950 flex flex-col md:flex-row justify-between items-center px-4 sm:px-6 lg:px-12 gap-4">
           <div className="text-sm font-bold text-white">Digital Sentinel <span className="font-normal opacity-50 ml-2">Guardian Portal</span></div>
